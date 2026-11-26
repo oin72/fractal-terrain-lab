@@ -2,6 +2,16 @@
 
 All notable changes to Fractal Terrain Lab. Format follows Keep a Changelog; versions follow Semantic Versioning 2.0.0.
 
+## [0.4.0] - 2026-11-26
+
+### Added
+- Keyboard icon in the top bar. Hover over it (or tap it) to see the controls for whatever is running: orbit view, fly-through, walk, hunt, lander, the sandbox or the current game.
+- Requests button. Players can write what they would like added or changed, then copy it, post it as a GitHub issue, or (in the Claude artifact copy, where their access allows) send it straight to the artifact's store.
+- `tools/build_artifact.py` builds the single page used for the Claude artifact copy.
+
+### Fixed
+- A negative time step (possible after the tab was paused) could break the tower defence game.
+
 ## [0.3.0] - 2026-11-26
 
 ### Added

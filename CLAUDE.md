@@ -25,6 +25,7 @@ grass, trees, animals, fly-through, walk and hunt modes. Owner: Triskelion Techn
 - `js/props.js`: low-polygon building and vehicle meshes. `js/glsl_props.js`: their shaders.
 - `js/sandbox.js`: the open-world sandbox (player modes, interaction, building, camera, HUD) and helpers for games.
 - `js/games.js`: the 20 games. Each is one object in `GAMES` with `init`, `tick`, `draw` and `status`.
+- `js/requests.js`: the Requests box. `tools/build_artifact.py` writes `dist/artifact/fractal-terrain-lab.html` for the Claude artifact copy (publish it with `js/*` and `VERSION` beside it, capabilities `db` and `user`).
 - `js/audio.js`: synthesised sound.
 - `js/atmos.js`: CPU copy of the sky scattering integral (sun colour, ambient light, sun position).
 - `js/glsl_common.js`, `js/glsl_scene.js`, `js/glsl_post.js`: all shaders.

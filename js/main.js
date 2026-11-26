@@ -9,6 +9,7 @@ import { audioBind, audioTick } from './audio.js';
 import { startLander, stopLander, landerTick, bindLander, retro, landerSize } from './lander.js';
 import { startSandbox, stopSandbox, gameTick, bindSandbox, setGame } from './sandbox.js';
 import { GAMES } from './games.js';
+import { bindRequests } from './requests.js';
 
 const cv = $("c");
 function setZoom(z) { S.zoom = Math.max(.4, Math.min(40, z)); $("z").value = 100 * Math.log(S.zoom / .4) / Math.log(100); $("zv").textContent = S.zoom.toFixed(2) }
@@ -54,14 +55,23 @@ function fit() { const r = $("w").getBoundingClientRect(); let d = Math.min(devi
 let last = 0, frames = 0;
 function frame(t) { requestAnimationFrame(frame); step(t) }
 function step(t) {
-  const raw = (t - last) / 1000 || .016, dt = Math.min(.05, raw); last = t; S.TM = t / 1000; adapt(Math.min(raw, .5));
+  const raw = (t - last) / 1000 || .016, dt = Math.max(0, Math.min(.05, raw)); last = t; S.TM = t / 1000; adapt(Math.min(raw, .5));
   weatherStep(dt); worldTick(dt);
   if (S.fly) { if (S.GAME) gameTick(dt); else if (S.LAND) landerTick(dt); else if (S.HUNT) huntTick(dt); else flyTick(dt, t) }
   animStep(dt); audioTick();
   R.render(view());
-  if (!(frames++ % 30)) { const n = $("ge").checked ? R.stats.blades : 0; $("gqv").textContent = n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : (n / 1000 | 0) + "k" }
+  if (!(frames++ % 30)) { const kt = controls(); if ($("kbt").textContent != kt) $("kbt").textContent = kt; const n = $("ge").checked ? R.stats.blades : 0; $("gqv").textContent = n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : (n / 1000 | 0) + "k" }
 }
 
+function controls() {
+  const G = S.GAME, gm = G && G.game;
+  if (gm) return gm.def.n + "\n" + gm.def.h + "\n\nMove: W A S D or arrow keys · Shift run\nLook: drag · Zoom: mouse wheel\nR: restart this game\nQ: back to free roam";
+  if (G) return "Sandbox (free roam)\nMove: W A S D · turn: ← → · Shift run\nLook: drag · Zoom: mouse wheel\nE: use (take a car, bus, boat or train, get out, talk to people, check buildings)\n1 walk · 2 car · 3 boat · 4 plane\nCar and boat: W/S drive, A/D steer\nPlane: S nose up, W nose down, A/D bank, Shift faster, Ctrl slower\nTrain: W forward, S back\nB: choose what to build · Enter: build it\nX: remove the nearest building or tree\nN: change the weather\n[ and ]: time of day\nGames: Options, Sandbox & games, Play";
+  if (S.LAND) return "Lander\nSpace (or ●): fire the engines\nW/S or ↑/↓: tilt forward and back\nA/D or ←/→: tilt sideways\nDrag: look around · wheel: zoom\nR: restart\nLand slowly and upright on the lit pad";
+  if (S.HUNT) return (S.HU.walk ? "Walk" : "Hunt") + "\nW/↑ forward · S/↓ back · A/D sidestep\n←/→ turn · Shift run\nDrag: look or aim" + (S.HU.walk ? "" : "\nSpace or click: fire") + "\nWater: you swim";
+  if (S.fly) return "Fly through\nThe autopilot follows the terrain\n←/→ steer · ↑/↓ speed\nDrag: look around · wheel: zoom";
+  return "Orbit view\nDrag: look around\nMouse wheel or pinch: zoom\n\nButtons at the top start Fly through, Hunt, Walk, Lander and the Sandbox (open world and games)."
+}
 // ---------- controls ----------
 function bind() {
   const keys = S.keys;
@@ -76,7 +86,7 @@ function bind() {
   const tod = () => { const h = +$("tod").value % 24, hh = Math.floor(h), mm = Math.round((h - hh) * 60); $("todv").textContent = String(hh).padStart(2, "0") + ":" + String(mm == 60 ? 59 : mm).padStart(2, "0") }; $("tod").addEventListener("input", tod); tod();
   $("z").oninput = () => setZoom(.4 * Math.pow(100, +$("z").value / 100)); setZoom(1);
   cv.addEventListener("wheel", e => { e.preventDefault(); setZoom(S.zoom * Math.exp(-e.deltaY * .0015)) }, { passive: false });
-  const typing = e => { const t = e.target; return t && (t.tagName == "INPUT" && (t.type == "text" || t.type == "number")) };
+  const typing = e => { const t = e.target; return t && (t.tagName == "TEXTAREA" || (t.tagName == "INPUT" && (t.type == "text" || t.type == "number"))) };
   addEventListener("keydown", e => {
     if (typing(e)) return; keys[e.key] = 1; keys[e.key.toLowerCase()] = 1; if ((S.HUNT || S.LAND || S.GAME) && (e.key == " " || e.key == "Enter")) e.preventDefault(); if (!S.fly) return; if (e.key.startsWith("Arrow")) e.preventDefault(); if (S.HUNT || S.LAND || S.GAME) return; const s = $("spd");
     if (e.key == "ArrowUp") s.value = +s.value + .02; if (e.key == "ArrowDown") s.value = +s.value - .02; s.oninput()
@@ -105,6 +115,8 @@ function bind() {
   bindSandbox(setZoom);
   $("lb").onclick = () => { if (S.LAND) { stopLander(); return } if (S.GAME) stopSandbox(); if (S.HUNT || S.fly) $(S.HUNT ? (S.HU.walk ? "wb" : "hb") : "fb").click(); startLander() };
   $("lm").addEventListener("input", fit); bindLander(setZoom, fit);
+  // keyboard icon: hover (or tap) lists the controls for whatever mode is running
+  const kb = $("kb"), show = () => $("kbt").textContent = controls(); kb.onmouseenter = kb.onfocus = show; kb.onclick = () => { show(); kb.classList.toggle("on") };
   new ResizeObserver(fit).observe($("w")); addEventListener("resize", fit)
 }
 // Spotify: embedded player (log in inside the player; Premium needed for full tracks)
@@ -122,7 +134,7 @@ function loadSpotify() {
   box.append(btn, fr)
 }
 
-bind(); bindLife(); audioBind(); fit();
+bind(); bindRequests(); bindLife(); audioBind(); fit();
 fetch("VERSION").then(r => r.ok ? r.text() : "").then(v => { if (v.trim()) $("ver").textContent = "v" + v.trim() }).catch(() => { });
 // Debug handle: FTL.fixedScale = 0.8 pins the render scale (turns the adaptive scaler off)
 window.FTL = { S, R, tick: n => { for (let i = 0; i < (n || 1); i++) step(last + 33) } };
