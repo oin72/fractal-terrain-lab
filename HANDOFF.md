@@ -20,7 +20,7 @@
 - Hand-written WebGL2, several files, no build step (owner's choice).
 - Tuned for a dedicated GPU. An adaptive scaler lowers render scale and grass density on slower GPUs.
 - The "GPU scene" checkbox was removed because the 2D painter it switched to no longer exists.
-- Local git only. Nothing pushed to GitHub and nothing deployed.
+- Pushed to a private GitHub repository, `oin72/fractal-terrain-lab` (branch `main`, tags `v0.1.0` and `v0.2.0`). Nothing deployed.
 
 ## Not verified
 - Frame rate on a dedicated GPU. The test machine's browser pane used Intel UHD graphics (about 8 to 10 frames per second
@@ -32,4 +32,4 @@
 ## Next ideas
 - Temporal anti-aliasing and reprojection for the clouds (they are half resolution with a blur).
 - Trees and animals on the surrounding tiles.
-- A GitHub repository and a triskelionltd.com subdomain, if the owner wants it published.
+- A triskelionltd.com subdomain, if the owner wants it published.
