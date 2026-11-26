@@ -9,6 +9,13 @@
 - Checked in the Claude Browser pane (Intel UHD integrated graphics): all shaders compile, no GL errors, orbit, fly,
   walk, hunt (both views), rain, snow, storm, tornado, night, dusk, triangle method with surrounding tiles, horizon.
 
+## Added in 0.2.0
+- Lander game with Modern and Retro styles (`js/lander.js`). It is an original thrust-and-gravity game, not a copy of a
+  specific old title: retro means a generic 1980s look (240-line resolution, flat facets, six colour levels per channel).
+- Checked in the browser: take-off, scored soft landing, next pad lighting, crash and respawn, stopping, both styles.
+- Not verified: playing a full flight by hand between pads (the difficulty balance of thrust, fuel and landing limits is
+  untested by a person), engine sound, the on-screen touch buttons.
+
 ## Decided
 - Hand-written WebGL2, several files, no build step (owner's choice).
 - Tuned for a dedicated GPU. An adaptive scaler lowers render scale and grass density on slower GPUs.

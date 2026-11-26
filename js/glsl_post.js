@@ -210,13 +210,15 @@ void main(){vec3 s=texture(uTexA,vUV).rgb*4.;
  s+=(texture(uTexA,vUV+uTexel*vec2(1.,0.)).rgb+texture(uTexA,vUV+uTexel*vec2(-1.,0.)).rgb+texture(uTexA,vUV+uTexel*vec2(0.,1.)).rgb+texture(uTexA,vUV+uTexel*vec2(0.,-1.)).rgb)*2.;
  s+=texture(uTexA,vUV+uTexel).rgb+texture(uTexA,vUV-uTexel).rgb+texture(uTexA,vUV+uTexel*vec2(1.,-1.)).rgb+texture(uTexA,vUV+uTexel*vec2(-1.,1.)).rgb;
  o=vec4(s/16.,1.);}`;
-export const FINAL_FS = HEAD + `uniform sampler2D uTexA,uTexB;uniform vec4 uGrade;in vec2 vUV;out vec4 o;
+export const FINAL_FS = HEAD + `uniform sampler2D uTexA,uTexB;uniform vec4 uGrade;uniform float uRetro;in vec2 vUV;out vec4 o;
 vec3 aces(vec3 x){const mat3 mi=mat3(.59719,.076,.0284,.35458,.90834,.13383,.04823,.01566,.83777);
  const mat3 mo=mat3(1.60475,-.10208,-.00327,-.53108,1.10813,-.07276,-.07367,-.00605,1.07602);
  x=mi*x;vec3 a=x*(x+.0245786)-.000090537,b=x*(.983729*x+.432951)+.238081;return clamp(mo*(a/b),0.,1.);}
 void main(){vec3 c=texture(uTexA,vUV).rgb,b=texture(uTexB,vUV).rgb;c=mix(c,b,uGrade.y);
  c*=uGrade.x;c+=vec3(.8,.85,1.)*uGrade.z;
  c=aces(c);c=pow(c,vec3(1./2.2));
+ // retro style: a limited palette (six levels per channel)
+ if(uRetro>.5){c=clamp(mix(vec3(dot(c,vec3(.2126,.7152,.0722))),c,1.45),0.,1.);c=floor(c*5.+.5)/5.;o=vec4(c,1.);return;}
  float l=dot(c,vec3(.2126,.7152,.0722));c=mix(vec3(l),c,1.08);
  vec2 q=vUV-.5;c*=1.-dot(q,q)*.35;
  float n=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715))+uGrade.w));c+=(n-.5)/255.;

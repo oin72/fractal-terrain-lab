@@ -2,6 +2,13 @@
 
 All notable changes to Fractal Terrain Lab. Format follows Keep a Changelog; versions follow Semantic Versioning 2.0.0.
 
+## [0.2.0] - 2026-11-26
+
+### Added
+- Lander game (Lander button): fly a thrust-and-gravity craft over the landscape and set it down gently on the lit pad. Each pad landing scores 50 to 100 points and refuels; the next pad then lights up. Fuel, altitude, descent rate, drift and pad direction are shown on screen.
+- Lander style control (Options, Lander): Modern is a new quad-thruster craft with glowing engines, folding landing gear, exhaust plumes and dust, in the full renderer. Retro is an angular faceted pod drawn at low resolution with flat shading and a limited colour palette.
+- Exhaust wash flattens grass under the craft, and a shadow under it helps judge height.
+
 ## [0.1.0] - 2026-11-26
 
 First version of the project, rebuilt from the single-file "Fractal Terrain Lab" page.

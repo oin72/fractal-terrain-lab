@@ -20,6 +20,7 @@ grass, trees, animals, fly-through, walk and hunt modes. Owner: Triskelion Techn
 - `js/trees.js`: tree skeleton generators, meshes, placement, leaf texture.
 - `js/weather.js`: weather cells, snow build-up, tornado, lightning, and the numbers the renderer derives from the weather controls.
 - `js/life.js`: animals, hunter, craft flight (game logic ported from the original).
+- `js/lander.js`: the Lander game (physics, pads, scoring, effects). Its craft models are the sixth creature shader family in `glsl_scene.js`.
 - `js/audio.js`: synthesised sound.
 - `js/atmos.js`: CPU copy of the sky scattering integral (sun colour, ambient light, sun position).
 - `js/glsl_common.js`, `js/glsl_scene.js`, `js/glsl_post.js`: all shaders.

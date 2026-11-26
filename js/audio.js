@@ -20,7 +20,7 @@ const on = () => AU && $("snd").checked;
 export function audioTick() {
   if (!on()) return; const wm = $("wx").value, wi = +$("wi").value, L = S.HUNT ? S.HU : S.fly && S.cam ? S.cam : null, lx = L ? L.x : 0, lz = L ? L.z : 0,
     k = wm == "off" ? 0 : Math.max(0, Math.min(1, (wxField(Math.floor((lx + CX) / (2 * CX / CG)), Math.floor((lz + CX) / (2 * CX / CG))) - (.8 - .4 * wi)) / .18)),
-    rain = (wm == "snow") ? k * .15 : (wm == "off") ? 0 : k * .5, windA = (.15 + (wm == "off" ? 0 : .5 * wi)) * (1 + k), t = AU.c.currentTime, TW = S.TW; let tor = 0; if (TW && TW[4] > .3) tor = Math.max(0, 1 - Math.hypot(TW[0] - lx, TW[1] - lz) / .9);
+    rain = (wm == "snow") ? k * .15 : (wm == "off") ? 0 : k * .5, windA = (.15 + (wm == "off" ? 0 : .5 * wi)) * (1 + k), t = AU.c.currentTime, TW = S.TW; let tor = 0; if (TW && TW[4] > .3) tor = Math.max(0, 1 - Math.hypot(TW[0] - lx, TW[1] - lz) / .9); if (S.LAND && S.LD) tor = Math.max(tor, S.LD.thr * .45);
   AU.rain.fl.frequency.value = wm == "snow" ? 1200 : 3500; AU.rain.g.gain.setTargetAtTime(rain * .6, t, .3); AU.wind.g.gain.setTargetAtTime(windA * .3, t, .3); AU.roar.g.gain.setTargetAtTime(tor * .9, t, .3)
 }
 export function gun(w) {

@@ -103,7 +103,7 @@ function birdStep(a, T, dt, al, dm) {
 // ---------- Fly-through ----------
 export function zoomCraft() { setZoom(.0084 / CRAFT[+$("cr").value].cu) }
 export function toggleFly() {
-  if (!S.Hn) return; if (S.HUNT) { stopHunt(); return } S.fly = !S.fly; $("fb").textContent = S.fly ? "■ Stop flying" : "✈ Fly through";
+  if (!S.Hn) return; if (S.LAND && S.stopLander) S.stopLander(); if (S.HUNT) { stopHunt(); return } S.fly = !S.fly; $("fb").textContent = S.fly ? "■ Stop flying" : "✈ Fly through";
   if (S.fly) { S.cam = { x: 0, z: -.3, yaw: 0, pit: .2, y: gh(0, -.3) + .09 }; zoomCraft() } else setZoom(1)
 }
 // Tornado vs craft: suction inside 0.25, capture inside 0.07, spiral up the funnel, then ejected in a random direction
@@ -208,7 +208,7 @@ export function huntTick(dt) {
   $("cross").style.display = H.walk ? "none" : "block"; $("swim").style.display = H.sw && !H.walk && H.view == 1 ? "block" : "none"
 }
 export function startHunt(wk) {
-  if (!S.Hn) return; const sy = seaY(), HU = S.HU; let x = 0, z = -.2;
+  if (!S.Hn) return; if (S.LAND && S.stopLander) S.stopLander(); const sy = seaY(), HU = S.HU; let x = 0, z = -.2;
   for (let k = 0; k < 60; k++) { const a = (Math.random() - .5) * .7, b = (Math.random() - .5) * .7; if (!outside(a, b, .06) && gh(a, b) > sy + .012) { x = a; z = b; break } }
   S.HUNT = true; Object.assign(HU, { on: 1, walk: !!wk, x, z, y: gh(x, z), yaw: Math.random() * 6.28, pit: .15, cool: 0, flash: 0, rec: 0, ph: 0, mv: 0, sw: 0, kills: 0, moved: 0, btn: 0, tilt: 0, sf: 0, sa: 0, tw: 0, cd: 0, chute: 0 }); S.PTL = [];
   S.fly = true; S.cam = { x, z, y: HU.y + .02, yaw: HU.yaw, pit: .15 }; setZoom(+$("hv").value ? 1.5 : 1);

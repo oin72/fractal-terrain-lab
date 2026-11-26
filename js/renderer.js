@@ -1,7 +1,7 @@
 // WebGL2 renderer. Frame order: sky lookup -> two sun shadow maps -> HDR scene (terrain, trees, grass, creatures)
 // -> volumetric clouds (half res) -> composite (sky, water, fog, clouds) -> weather particles -> bloom -> tone map.
 import { S, $ } from './state.js';
-import { HN, CG } from './terrain.js';
+import { HN, CG, gh } from './terrain.js';
 import * as GS from './glsl_scene.js';
 import * as GP from './glsl_post.js';
 import { noise2D, noise3D } from './noisetex.js';
@@ -9,6 +9,7 @@ import { sunLight, skyAmbient, sunDir } from './atmos.js';
 import { protoGen, treeGen, treeMesh, leafCanvas } from './trees.js';
 import { AT, CRAFT, WPN, HUNTER_PAL } from './life.js';
 import { weatherLook } from './weather.js';
+import { landerInstance, retro } from './lander.js';
 
 let gl, cv, P = {}, F = {}, TX = {}, FB = {}, W = 0, H = 0, msaa = 4, ok = false;
 const UNITS = { uHeight: 0, uSnow: 1, uWx: 2, uSh0: 3, uSh1: 4, uSkyLUT: 5, uNoise: 6, uNoise3: 7, uScene: 8, uDepth: 9, uClouds: 10, uLeaf: 11, uTexA: 12, uTexB: 13 };
@@ -100,8 +101,8 @@ export function init(canvas) {
   ribVAO = gl.createVertexArray(); gl.bindVertexArray(ribVAO); ribBuf = vb(new Float32Array(13), gl.DYNAMIC_DRAW); at(0, 3, 52, 0); at(1, 3, 52, 12); at(2, 3, 52, 24); at(3, 4, 52, 36);
   gl.bindVertexArray(null);
   // palettes for the raymarched creatures
-  const pal = [0, 1, 2].map(j => { const a = new Float32Array(75); AT.forEach((t, i) => a.set(t.pal[j], i * 3)); a.set(HUNTER_PAL[j], 24); CRAFT.forEach((t, i) => a.set(t.pal[j], (10 + i) * 3)); WPN.forEach((t, i) => a.set(t.pal[j], (20 + i) * 3)); return a });
-  for (let i = 0; i < 5; i++) { const q = P["imp" + i]; gl.useProgram(q); ["uA", "uB", "uC"].forEach((n, j) => { const l = U(q, n); if (l) gl.uniform3fv(l, pal[j]) }) }
+  const pal = [0, 1, 2].map(j => { const a = new Float32Array(96); a.set([[.8, .16, .14], [.92, .85, .25], [.3, .31, .36]][j], 90); a.set([[.86, .88, .91], [.08, .62, .7], [.1, .11, .13]][j], 93); AT.forEach((t, i) => a.set(t.pal[j], i * 3)); a.set(HUNTER_PAL[j], 24); CRAFT.forEach((t, i) => a.set(t.pal[j], (10 + i) * 3)); WPN.forEach((t, i) => a.set(t.pal[j], (20 + i) * 3)); return a });
+  for (let i = 0; i < 6; i++) { const q = P["imp" + i]; gl.useProgram(q); ["uA", "uB", "uC"].forEach((n, j) => { const l = U(q, n); if (l) gl.uniform3fv(l, pal[j]) }) }
   ok = true; return true
 }
 
@@ -162,7 +163,7 @@ export function render(V) {
   for (let i = 0; i < CG * CG; i++) snow8[i] = S.SNOW[i] * 255;
   bindU(1, TX.snow); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, CG, CG, gl.RED, gl.UNSIGNED_BYTE, snow8);
   bindU(2, TX.wx); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, CG, CG, gl.RGBA, gl.UNSIGNED_BYTE, S.WX);
-  const wl = weatherLook(), TM = S.TM, TW = S.TW, HU = S.HU, hunt = S.HUNT, flying = S.fly && !hunt;
+  const wl = weatherLook(), TM = S.TM, TW = S.TW, HU = S.HU, hunt = S.HUNT, land = !!S.LAND, flying = S.fly && !hunt && !land, rt = retro() ? 1 : 0, LI = land ? landerInstance() : null;
 
   // ---- light: sun or moon, ambient sky, exposure ----
   const hour = +$("tod").value, sd = sunDir(hour), haze = 1 + 2.5 * wl.over, key = hour.toFixed(3) + "|" + haze.toFixed(2);
@@ -190,7 +191,7 @@ export function render(V) {
     uSunDir: L, uSunCol: Lc, uAmbSky: ambSky, uAmbGnd: ambGnd, uSunTrue: sd, uMoonDir: md,
     uTer: [S.hs, S.sea, $("ring").checked ? 1 : 0, S.hex ? 1 : 0], uHz: $("hz").checked ? 1 : 0,
     uCloud: [wl.base, wl.thick, wl.thr, wl.cloudOn], uWind: [wl.wind[0], wl.wind[1], wl.wind[2], TM * .012], uWxG: [0, wl.over, wl.fog, fl],
-    uTorn: TW ? [TW[0], TW[1], TW[4], TW[3]] : [0, 0, 0, 0], uHu: hunt ? [HU.x, HU.z, HU.y, 1] : [0, 0, 0, 0], uCl2: [wl.shadow, wl.dens, wl.veil, 38],
+    uTorn: TW ? [TW[0], TW[1], TW[4], TW[3]] : [0, 0, 0, 0], uHu: hunt ? [HU.x, HU.z, HU.y, 1] : LI ? [LI[0], LI[2], gh(LI[0], LI[2]), 2.6] : [0, 0, 0, 0], uCl2: [wl.shadow, wl.dens, wl.veil, 38],
     uShM0: LM[0], uShM1: LM[1], uShB: [t0 * 1.6, t0 * 1.2 / D0, t1 * 1.6, t1 * 1.2 / D1]
   });
 
@@ -234,14 +235,14 @@ export function render(V) {
   // ---- 3. HDR scene ----
   gl.bindFramebuffer(gl.FRAMEBUFFER, FB.ms); gl.viewport(0, 0, W, H); gl.clearColor(0, 0, 0, 1); gl.clearDepth(1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   // grass rings: dense near the focus, sparser and wider with distance
-  const grassOn = $("ge").checked, ext = $("ring").checked ? 1.6 : .56, rings = [];
+  const grassOn = $("ge").checked && !rt, ext = $("ring").checked ? 1.6 : .56, rings = [];
   let gFar = [0, 0, 0, 0];
   if (grassOn) {
     const Nq = Math.round(256 * Math.sqrt(+$("gq").value) * (S.gdet || 1) / 2) * 2, fl2 = Math.hypot(f[0], f[2]) || 1, sh = V.orbit ? 0 : .55;
     for (let R = Math.min(.6, Math.max(.016, .8 * vd)), k = 0; k < 4; k++, R *= 3) { rings.push({ R, N: Nq, c: [fo[0] + f[0] / fl2 * R * sh, fo[2] + f[2] / fl2 * R * sh] }); if (R >= ext) break }
     const g0 = rings[0]; gFar = [g0.c[0], g0.c[1], g0.R, Math.min(1, .00012 / (2 * g0.R / Nq))]; stats.blades = Nq * Nq * rings.length
   }
-  let p = use(P.terrain); set(p, "uGFar", gFar); drawTerrain(p);
+  let p = use(P.terrain); set(p, "uGFar", gFar); set(p, "uRetro", rt); drawTerrain(p);
   if (treesOn) { gl.enable(gl.SAMPLE_ALPHA_TO_COVERAGE); p = use(P.tree); drawTrees(p); gl.disable(gl.SAMPLE_ALPHA_TO_COVERAGE) }
   if (grassOn) {
     p = use(P.grass);
@@ -263,9 +264,10 @@ export function render(V) {
     const bob = HU.mv ? Math.sin(HU.ph * 1.2) * .00006 : 0, rc = (HU.rec || 0) * .0004, o = [.0026 - rc, .00062 + bob, -.00082];
     imp.push(pos[0] + f[0] * o[0] + r[0] * o[1] + u[0] * o[2], pos[1] + f[1] * o[0] + r[1] * o[1] + u[1] * o[2], pos[2] + f[2] * o[0] + r[2] * o[1] + u[2] * o[2], .0005, Math.PI / 2 - S.cam.yaw, 20 + HU.wp, 0, 0, 0, -S.cam.pit + (HU.rec || 0) * .08, 0, 0)
   }
+  if (LI) imp.push(...LI);
   if (flying && $("pl").checked) { const c = S.cam, k = +$("cr").value; imp.push(c.x, c.y, c.z, CRAFT[k].cu, Math.PI / 2 - c.yaw, 10 + k, 0, 0, -(c.bank || 0), 0, 0, 0) }
   if (imp.length) {
-    const fam = [[], [], [], [], []]; for (let i = 0; i < imp.length; i += 12) { const k = imp[i + 5]; fam[k < 3.5 ? 0 : k < 7.5 ? 1 : k < 9.5 ? 2 : k < 19.5 ? 3 : 4].push(...imp.slice(i, i + 12)) }
+    const fam = [[], [], [], [], [], []]; for (let i = 0; i < imp.length; i += 12) { const k = imp[i + 5]; fam[k < 3.5 ? 0 : k < 7.5 ? 1 : k < 9.5 ? 2 : k < 19.5 ? 3 : k < 29.5 ? 4 : 5].push(...imp.slice(i, i + 12)) }
     gl.bindVertexArray(impVAO); gl.bindBuffer(gl.ARRAY_BUFFER, impBuf);
     fam.forEach((a, i) => { if (!a.length) return; use(P["imp" + i]); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(a), gl.DYNAMIC_DRAW); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, a.length / 12) })
   }
@@ -300,6 +302,8 @@ export function render(V) {
   if (hunt && HU.sw) spr.push(HU.x, HU.y, HU.z, .0026 + Math.sin(TM * 4) * .0002, 1, 1, 1, .6, 1);
   if (hunt && HU.flash > 0) { const k = Math.min(1, HU.flash * 10) * 40, o = HU.view == 1 ? [.0045, .00075, -.0009] : [.004, 0, -.0006], b = HU.view == 1 ? pos : [HU.x, HU.y + .0047, HU.z]; spr.push(b[0] + f[0] * o[0] + r[0] * o[1] + u[0] * o[2], b[1] + f[1] * o[0] + r[1] * o[1] + u[1] * o[2], b[2] + f[2] * o[0] + r[2] * o[1] + u[2] * o[2], .0009, k, k * .8, k * .4, 1, 3) }
   if ($("ae").checked) for (const a of S.AN) if (a.eat > TM && a.st == "alive") { const un = AT[a.t].au * (hunt ? .45 : 1); spr.push(a.x + Math.cos(a.h) * un, a.y + un * .9, a.z + Math.sin(a.h) * un, un * .14, .75, .08, .08, 1, 0) }
+  if (S.FX) for (const q of S.FX) spr.push(q);
+  if (S.FXR) for (const q of S.FXR) seg(q[0], q[1], q[2], q[3]);
   for (const t of S.TRC) seg(t.a, t.b, 1.6, [6, 5.6, 4, Math.min(1, t.t * 8)]);
   if (bolt) { const k = 90 * (.5 + .5 * fl); for (let i = 1; i < bolt.length; i++) { seg(bolt[i - 1], bolt[i], 2.2, [k * .92, k * .94, k, 1]); seg(bolt[i - 1], bolt[i], 9, [k * .1, k * .12, k * .2, 1]) } }
   if (spr.length) { p = use(P.sprite); gl.bindVertexArray(sprVAO); gl.bindBuffer(gl.ARRAY_BUFFER, sprBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(spr), gl.DYNAMIC_DRAW); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, spr.length / 9) }
@@ -315,6 +319,6 @@ export function render(V) {
 
   // ---- 9. tone map to the screen ----
   gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H); gl.useProgram(P.final); bindU(12, TX.comp); bindU(13, TX.bloom[0]);
-  set(P.final, "uGrade", [exposure, .5 / TX.bloom.length * .22, fl * .025, TM % 10]); fsTri();
+  set(P.final, "uRetro", rt); set(P.final, "uGrade", [exposure, .5 / TX.bloom.length * .22, fl * .025, TM % 10]); fsTri();
   gl.bindVertexArray(null)
 }

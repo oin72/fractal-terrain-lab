@@ -10,7 +10,7 @@ void main(){vec2 g=aP;float m=uLvl.w*smoothstep(.72,.94,max(abs(g.x),abs(g.y))/9
 export const TERRAIN_SHADOW_FS = HEAD + `in vec3 vW;uniform vec4 uHole;out vec4 o;
 void main(){if(vW.x>uHole.x&&vW.x<uHole.z&&vW.z>uHole.y&&vW.z<uHole.w)discard;o=vec4(0.);}`;
 export const TERRAIN_FS = HEAD + COMMON + TERR + LIGHT + `
-in vec3 vW;uniform vec4 uHole;uniform vec4 uGFar;out vec4 o;
+in vec3 vW;uniform vec4 uHole;uniform vec4 uGFar;uniform float uRetro;out vec4 o;
 void main(){
  if(vW.x>uHole.x&&vW.x<uHole.z&&vW.z>uHole.y&&vW.z<uHole.w)discard;
  vec2 p=vW.xz;float dist=length(vW-uCam),e=max(.001,dist*.0012);
@@ -43,10 +43,12 @@ void main(){
  wet=max(wet,smoothstep(seaY+.0022,seaY+.0003,h0));
  alb*=mix(1.,.5,wet);
  alb=mix(alb,vec3(.84,.88,.94),snow);
+ // retro style: flat facets straight from the mesh triangles
+ if(uRetro>.5){nd=normalize(cross(dFdx(vW),dFdy(vW)));if(nd.y<0.)nd=-nd;}
  float sh=shadowSun(vW,n)*cloudShadow(vW);
  float ndl=max(dot(nd,uSunDir),0.);
  vec3 amb=mix(uAmbGnd,uAmbSky,nd.y*.5+.5)*ao;
- float blob=1.-.45*uHu.w*smoothstep(.0035,.0006,length(p-uHu.xy))*step(abs(vW.y-uHu.z),.01);
+ float hw=max(uHu.w,1.),blob=1.-.5*min(uHu.w,1.)*smoothstep(.0035*hw,.0006*hw,length(p-uHu.xy))*step(abs(vW.y-uHu.z),.02);
  blob*=1.-.6*uTorn.z*smoothstep(.09,.01,length(p-uTorn.xy));
  vec3 col=alb*(uSunCol*ndl*sh+amb)*blob;
  vec3 V=normalize(uCam-vW),H=normalize(V+uSunDir);
@@ -92,7 +94,7 @@ void main(){
  float fl=sin(uTime*(5.+3.*r.x)+r.y*40.+dot(base,wdir)*700.)*uWind.z*.1;
  vec2 off=dir*(.12+.5*r3.y*r3.y)*(flower>0.?.3:1.)+wdir*wamt*.8+vec2(-wdir.y,wdir.x)*fl;
  vec2 d2=uTorn.xy-base;float dl=length(d2)+1e-4,tf=uTorn.z*smoothstep(.3,.02,dl);off+=(d2/dl*.5+vec2(-d2.y,d2.x)/dl*.9)*tf*1.2;
- vec2 dh=base-uHu.xy;float dsq=length(dh)+1e-5,pf=uHu.w*smoothstep(.0035,0.,dsq);off+=dh/dsq*pf*1.4;
+ vec2 dh=base-uHu.xy;float dsq=length(dh)+1e-5,pf=min(uHu.w,1.)*smoothstep(.0035*max(uHu.w,1.),0.,dsq);off+=dh/dsq*pf*1.4;
  off*=1.+snow*1.5;
  float ol=length(off);if(ol>.94){off*=.94/ol;ol=.94;}
  float ty=sqrt(1.-ol*ol);
@@ -173,7 +175,8 @@ void main(){vec3 N=normalize(vN),V=normalize(uCam-vW),L=uSunDir;
 // kinds: 0-3 rabbit deer fox wolf, 4-7 hawk eagle robin dragon, 8 hunter, 10-16 craft, 20-24 weapons
 const BND = `
 vec4 bnd(float k,float chute){
- if(k>19.5)return vec4(1.2,.2,0.,2.9);
+ if(k>29.5)return vec4(0.,.9,0.,2.6);
+ if(k>19.5)return vec4(.7,.2,0.,2.9);
  if(k>9.5)return vec4(0.,1.2,0.,5.9);
  if(k>7.5)return chute>0.?vec4(0.,4.2,0.,6.6):vec4(0.,1.9,0.,3.3);
  if(k>3.5)return vec4(0.,0.,0.,k>6.5?4.1:3.);
@@ -190,7 +193,7 @@ void main(){float hh=aJ.x;vec3 ex=vec3(cos(hh),0.,sin(hh)),ey=vec3(0.,1.,0.),ez=
  fSh=aJ.y>19.5?1.:shadowSun1(aI.xyz+vec3(0.,aI.w*1.5,0.));
  gl_Position=uVP*vec4(w,1.);}`;
 const IMP_A = HEAD + COMMON + BND + `
-uniform vec3 uA[25],uB[25],uC[25];
+uniform vec3 uA[32],uB[32],uC[32];
 in vec3 vW;flat in vec4 fI,fJ,fK;flat in vec3 fX,fY,fZ;flat in float fSh;out vec4 o;
 float h3(vec3 p){p=fract(p*.3183099+.1);p*=17.;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}
 float n3(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);
@@ -314,6 +317,36 @@ vec2 map(vec3 p){vec3 q=vec3(p.z,p.y,p.x);float k=fJ.y-20.;vec2 d;
  else{d=vec2(cap(q,vec3(0.,.3,0.),vec3(0.,.3,2.6),.12),2.);d=Um(d,vec2(bxx(q,vec3(0.,.1,.3),vec3(.28,.35,1.)),0.));d=Um(d,vec2(bxx(q,vec3(0.,-.7,.5),vec3(.15,.5,.25)),2.));d=Um(d,vec2(bxx(q,vec3(0.,0.,-1.3),vec3(.2,.3,.6)),0.));}
  return d;}
 `;
+// Lander craft (feet at y=0). kind 30: retro faceted pod on three legs. kind 31: modern quad-thruster lander.
+// fK.z = throttle, fK.w = landing gear down
+const F_LD = `
+vec2 map(vec3 p){vec2 d;
+ if(fJ.y<30.5){vec3 c=vec3(0.,1.05,0.);float b=p.y-c.y-.42,m=0.;
+  for(int i=0;i<6;i++){float a=float(i)*1.0472;vec3 n=normalize(vec3(cos(a),.6,sin(a)));float e=dot(p-c,n)-.72;if(e>b){b=e;m=mod(float(i),2.);}
+   n=normalize(vec3(cos(a),-1.1,sin(a)));e=dot(p-c,n)-.5;if(e>b){b=e;m=2.;}}
+  d=vec2(b,m);
+  d=Um(d,vec2(bxx(p,vec3(.5,1.3,0.),vec3(.22,.1,.3)),6.));
+  for(int i=0;i<3;i++){float a=float(i)*2.0944+1.0472;vec3 f=vec3(cos(a)*1.15,.04,sin(a)*1.15);
+   d=Um(d,vec2(cap(p,vec3(cos(a)*.45,.75,sin(a)*.45),f,.05),2.));d=Um(d,vec2(bxx(p,f,vec3(.16,.04,.16)),1.));}
+  d=Um(d,vec2(max(length(p.xz)-.26,abs(p.y-.52)-.12),2.));
+  return d;}
+ vec3 q=vec3(abs(p.x),p.y,abs(p.z));float g=fK.w;
+ d=vec2(ell(p,vec3(.05,1.05,0.),vec3(1.2,.4,.68)),0.);
+ d=Sm(d,vec2(ell(p,vec3(-.95,1.12,0.),vec3(.75,.2,.26)),0.),.25);
+ d=Sm(d,vec2(ell(p,vec3(.6,1.27,0.),vec3(.5,.25,.36)),3.),.04);
+ d=Um(d,vec2(bxx(vec3(p.x,p.y,q.z),vec3(-1.45,1.45,.3),vec3(.22,.3,.025)),1.));
+ d=Um(d,vec2(cap(vec3(p.x,p.y,q.z),vec3(-1.3,1.15,.05),vec3(-1.5,1.2,.3),.05),2.));
+ vec3 nc=vec3(.78,1.02,1.08);
+ d=Um(d,vec2(cap(q,vec3(.4,1.05,.4),nc,.085),2.));
+ d=Um(d,vec2(max(length(q.xz-nc.xz)-.3,abs(q.y-nc.y)-.2),1.));
+ d=Um(d,vec2(max(abs(length(q.xz-nc.xz)-.3)-.035,abs(q.y-nc.y-.2)-.03),2.));
+ d=Um(d,vec2(max(length(q.xz-nc.xz)-.24,abs(q.y-nc.y+.2)-.035),9.));
+ d=Um(d,vec2(sph(q,nc+vec3(.28,.12,.2),.05),4.));
+ vec3 ft=mix(vec3(.45,.72,.5),vec3(.5,.06,.62),g);
+ d=Um(d,vec2(cap(q,vec3(.3,.8,.3),ft,.05),2.));d=Um(d,vec2(ell(q,ft-vec3(0.,.02,0.),vec3(.17,.045,.17)),6.));
+ d=Um(d,vec2(cap(p,vec3(-.4,1.4,0.),vec3(-.55,1.95,0.),.018),2.));d=Um(d,vec2(sph(p,vec3(-.55,1.97,0.),.04),4.));
+ return d;}
+`;
 const IMP_B = `
 vec3 mc(float m,vec3 p){int k=int(fJ.y+.5);vec3 a=uA[k],b=uB[k],c=uC[k];
  if(m<.5)return fJ.y<7.5?a*(.82+.36*n3(p*vec3(5.,13.,13.))):a;
@@ -337,6 +370,11 @@ void main(){float u=fI.w,k=fJ.y;
  vec3 c=col*(uSunCol*dif*fSh+amb*ao)+amb*rim*.25;
  if(m>2.5&&m<3.5)c+=uSunCol*fSh*pow(max(dot(nw,normalize(uSunDir-rdw)),0.),60.)*.8+uAmbSky*rim*.8;
  if(k>9.5&&k<19.5&&((m>3.5&&m<4.5)||m>8.5))c=col*14.;
+ if(k>29.5){
+  if(k<30.5)c=col*(uSunCol*floor(dif*fSh*4.+.5)/4.+amb);
+  else{c+=uSunCol*fSh*pow(max(dot(nw,normalize(uSunDir-rdw)),0.),48.)*.35+uAmbSky*rim*.35;
+   if(m>8.5)c=vec3(.3,.6,1.)*(.6+34.*fK.z);
+   if(m>3.5&&m<4.5)c=vec3(1.,.25,.1)*(2.+10.*step(.5,fract(uTime*1.2)));}}
  o=vec4(c,1.);}`;
 // One small program per family (land animals, birds, hunter, craft, weapons): a single combined shader is too slow for drivers to compile
-export const IMP_FS = [F_AN, F_BRD, F_HU, F_CR, F_WP].map(f => IMP_A + f + IMP_B);
+export const IMP_FS = [F_AN, F_BRD, F_HU, F_CR, F_WP, F_LD].map(f => IMP_A + f + IMP_B);
