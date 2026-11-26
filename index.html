@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fractal Terrain Lab</title>
+<link rel="stylesheet" href="css/style.css">
+</head><body>
+<div id="panel">
+ <div id="bar">
+  <button id="ptab">☰ Options</button>
+  <button id="fb">✈ Fly through</button>
+  <button id="hb">🏹 Hunt</button>
+  <button id="wb">🚶 Walk</button>
+  <span id="ver"></span>
+ </div>
+ <div id="groups">
+  <details class="grp" open><summary>Terrain</summary><div class="gb">
+   <label>Method<select id="m">
+    <option value="ds">Diamond-square</option>
+    <option value="tri">Triangle midpoint displacement</option>
+    <option value="fbm">fBm value noise</option>
+    <option value="ridged">Ridged multifractal</option>
+    <option value="fault">Fault formation</option></select></label>
+   <label>Seed<input id="seedIn" type="number" min="0" max="999999999" step="1" style="width:110px"></label>
+   <button id="nb">🎲 Randomize</button>
+   <label><span>Roughness H <b id="Hv"></b></span><input id="H" type="range" min=".2" max="1" step=".05" value=".75"></label>
+   <label><span>Detail <b id="Lv"></b></span><input id="L" type="range" min="4" max="7" step="1" value="6"></label>
+   <label><span>Height <b id="hsv"></b></span><input id="hs" type="range" min=".05" max=".6" step=".01" value=".28"></label>
+   <label><span>Sea level <b id="seav"></b></span><input id="sea" type="range" min="0" max=".8" step=".01" value=".3"></label>
+   <p id="info"></p>
+  </div></details>
+  <details class="grp"><summary>View &amp; tiles</summary><div class="gb">
+   <label><span>Zoom <b id="zv"></b></span><input id="z" type="range" min="0" max="100" step=".5" value="20"></label>
+   <label class="chk"><input type="checkbox" id="ring">Surrounding tiles</label>
+   <label class="chk"><input type="checkbox" id="hz">Horizon</label>
+   <p id="hint">Drag to look · wheel or pinch to zoom · Fly: autopilot follows the terrain; ←/→ steer, ↑/↓ speed, or drag to take over</p>
+  </div></details>
+  <details class="grp"><summary>Fly &amp; craft</summary><div class="gb">
+   <label><span>Fly speed <b id="spdv"></b></span><input id="spd" type="range" min=".02" max=".4" step=".01" value=".12"></label>
+   <label>Craft<select id="cr"><option value="0">Plane</option><option value="1">Spaceship</option><option value="2">Hot air balloon</option><option value="3">Superman</option><option value="4">Flying pirate ship</option><option value="5">Eagle</option><option value="6">Dragon</option></select></label>
+   <label class="chk"><input type="checkbox" id="pl" checked>Show craft</label>
+  </div></details>
+  <details class="grp"><summary>Sky &amp; weather</summary><div class="gb">
+   <label><span>Time of day <b id="todv"></b></span><input id="tod" type="range" min="0" max="24" step=".05" value="15.5"></label>
+   <label class="chk"><input type="checkbox" id="cl" checked>Clouds</label>
+   <label><span>Cloud height <b id="chv"></b></span><input id="ch" type="range" min=".1" max="1.2" step=".01" value=".55"></label>
+   <label><span>Cloud cover <b id="ccv"></b></span><input id="cc" type="range" min="0" max="1" step=".01" value=".5"></label>
+   <label><span>Cloud thickness <b id="ctv"></b></span><input id="ct" type="range" min="0" max=".8" step=".01" value=".3"></label>
+   <label>Weather<select id="wx"><option value="off">Clear</option><option value="rain">Rain</option><option value="snow">Snow</option><option value="sleet">Sleet</option><option value="storm">Thunderstorm</option><option value="tornado">Tornadoes</option><option value="mixed">Fractal mix</option></select></label>
+   <label><span>Weather intensity <b id="wiv"></b></span><input id="wi" type="range" min="0" max="1" step=".01" value=".5"></label>
+  </div></details>
+  <details class="grp"><summary>Vegetation</summary><div class="gb">
+   <label>Tree type<select id="tt"><option value="mixed">Mixed (fractal zones)</option><option value="0">L-system</option><option value="1">Space colonization</option><option value="2">Spline tubes</option></select></label>
+   <label class="chk"><input type="checkbox" id="tr" checked>Trees</label>
+   <label><span>Tree density <b id="tdv"></b></span><input id="td" type="range" min="0" max="1" step=".01" value=".5"></label>
+  </div></details>
+  <details class="grp"><summary>Graphics</summary><div class="gb">
+   <label class="chk"><input type="checkbox" id="ge" checked>Grass</label>
+   <label><span>Grass blades <b id="gqv"></b></span><input id="gq" type="range" min="1" max="8" step="1" value="4"></label>
+   <label><span>Grass height <b id="gzv"></b></span><input id="gz" type="range" min=".4" max="2.5" step=".05" value="1"></label>
+  </div></details>
+  <details class="grp"><summary>Sound &amp; music</summary><div class="gb">
+   <label class="chk"><input type="checkbox" id="snd" checked>Sound effects</label>
+   <label><span>Volume</span><input id="vol" type="range" min="0" max="1" step=".05" value=".7"></label>
+   <label>Spotify link<input id="spl" type="text" placeholder="Spotify playlist / album / track link" style="width:240px"></label>
+   <button id="spb">Load</button>
+  </div></details>
+  <details class="grp"><summary>Animals</summary><div class="gb">
+   <label class="chk"><input type="checkbox" id="ae" checked>Animals on</label>
+   <label><span>Count <b id="anv"></b></span><input id="an" type="range" min="0" max="200" step="1" value="30"></label>
+   <label class="chk"><input type="checkbox" id="a0" checked>Rabbit<input id="p0" type="range" min="0" max="100" value="40" style="width:68px"><b id="q0"></b></label>
+   <label class="chk"><input type="checkbox" id="a1" checked>Deer<input id="p1" type="range" min="0" max="100" value="25" style="width:68px"><b id="q1"></b></label>
+   <label class="chk"><input type="checkbox" id="a2" checked>Fox<input id="p2" type="range" min="0" max="100" value="20" style="width:68px"><b id="q2"></b></label>
+   <label class="chk"><input type="checkbox" id="a3" checked>Wolf<input id="p3" type="range" min="0" max="100" value="15" style="width:68px"><b id="q3"></b></label>
+   <label class="chk"><input type="checkbox" id="a4" checked>Hawk<input id="p4" type="range" min="0" max="100" value="6" style="width:68px"><b id="q4"></b></label>
+   <label class="chk"><input type="checkbox" id="a5" checked>Eagle<input id="p5" type="range" min="0" max="100" value="4" style="width:68px"><b id="q5"></b></label>
+   <label class="chk"><input type="checkbox" id="a6" checked>Robin<input id="p6" type="range" min="0" max="100" value="14" style="width:68px"><b id="q6"></b></label>
+   <label class="chk"><input type="checkbox" id="a7" checked>Dragon<input id="p7" type="range" min="0" max="100" value="3" style="width:68px"><b id="q7"></b></label>
+   <label class="chk"><input type="checkbox" id="dm">Death mode</label>
+  </div></details>
+  <details class="grp"><summary>Hunt</summary><div class="gb">
+   <label>View<select id="hv"><option value="0">Third person</option><option value="1">First person (gun)</option></select></label>
+   <label>Weapon<select id="wp"><option value="0">Pistol</option><option value="1">Rifle</option><option value="2">Shotgun</option><option value="3">Bow</option><option value="4">Machine gun</option></select></label>
+  </div></details>
+ </div>
+</div>
+<div id="w">
+ <canvas id="c"></canvas>
+ <div id="swim"></div>
+ <div id="cross"></div>
+ <div id="hud"></div>
+ <div id="err"></div>
+ <div id="pad" style="display:none"><button id="bw">▲</button><button id="bf">●</button></div>
+</div>
+<script type="module" src="js/main.js"></script>
+</body></html>

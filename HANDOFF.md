@@ -1,0 +1,28 @@
+# Handoff note (2026-11-26)
+
+## Done
+- Version 0.1.0: the single-file Fractal Terrain Lab rebuilt as a multi-file, hand-written WebGL2 project.
+- Every original feature is present: five terrain methods, surrounding tiles, horizon, clouds, six weather modes with
+  tornado and lightning, three tree types, eight animal species, death mode, fly-through with seven craft, walk and hunt
+  with five weapons and two views, synthesised sound, Spotify embed.
+- New: time of day slider, realistic lighting and weather, new grass, water, sky and clouds. See `CHANGELOG.md`.
+- Checked in the Claude Browser pane (Intel UHD integrated graphics): all shaders compile, no GL errors, orbit, fly,
+  walk, hunt (both views), rain, snow, storm, tornado, night, dusk, triangle method with surrounding tiles, horizon.
+
+## Decided
+- Hand-written WebGL2, several files, no build step (owner's choice).
+- Tuned for a dedicated GPU. An adaptive scaler lowers render scale and grass density on slower GPUs.
+- The "GPU scene" checkbox was removed because the 2D painter it switched to no longer exists.
+- Local git only. Nothing pushed to GitHub and nothing deployed.
+
+## Not verified
+- Frame rate on a dedicated GPU. The test machine's browser pane used Intel UHD graphics (about 8 to 10 frames per second
+  at full grass density before the scaler steps in).
+- Sound (not audible from the test harness), the Spotify embed, touch controls and pinch zoom.
+- Firing weapons, kills, tornado capture of craft and hunter, and the parachute were ported but not exercised.
+- Trees are not drawn on the surrounding (mirrored) tiles, the same as the original.
+
+## Next ideas
+- Temporal anti-aliasing and reprojection for the clouds (they are half resolution with a blur).
+- Trees and animals on the surrounding tiles.
+- A GitHub repository and a triskelionltd.com subdomain, if the owner wants it published.
