@@ -10,9 +10,12 @@ import { protoGen, treeGen, treeMesh, leafCanvas } from './trees.js';
 import { AT, CRAFT, WPN, HUNTER_PAL } from './life.js';
 import { weatherLook } from './weather.js';
 import { landerInstance, retro } from './lander.js';
+import * as GR from './glsl_props.js';
+import { MODELS } from './props.js';
+import { worldDraw, blocked } from './world.js';
 
 let gl, cv, P = {}, F = {}, TX = {}, FB = {}, W = 0, H = 0, msaa = 4, ok = false;
-const UNITS = { uHeight: 0, uSnow: 1, uWx: 2, uSh0: 3, uSh1: 4, uSkyLUT: 5, uNoise: 6, uNoise3: 7, uScene: 8, uDepth: 9, uClouds: 10, uLeaf: 11, uTexA: 12, uTexB: 13 };
+const UNITS = { uHeight: 0, uSnow: 1, uWx: 2, uSh0: 3, uSh1: 4, uSkyLUT: 5, uNoise: 6, uNoise3: 7, uScene: 8, uDepth: 9, uClouds: 10, uLeaf: 11, uTexA: 12, uTexB: 13, uRoad: 14 };
 const SH = 2048, GN = 192, SCR = 15;
 const fail = m => { const e = $("err"); e.style.display = "block"; e.textContent = (e.textContent ? e.textContent + "\n" : "") + m; console.error(m) };
 
@@ -51,6 +54,7 @@ function fbo(color, depth) {
 function hdrTex(w, h) { const t = tex(gl.TEXTURE_2D, gl.LINEAR, gl.CLAMP_TO_EDGE); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA16F, w, h); return t }
 
 let gridVAO, gridN, bladeVAO, quadVAO, emptyVAO, impVAO, impBuf, sprVAO, sprBuf, ribVAO, ribBuf, tornVAO, precipVAO;
+let meshes = {}, roadVer = -1;
 let trees = null, treeVer = -1, leafTex = [], heightVer = -1, atmoKey = "", atmoVal = null;
 const PRECIP_N = 70000;
 
@@ -63,8 +67,9 @@ export function init(canvas) {
   P.grass = prog("grass", GS.GRASS_VS, GS.GRASS_FS);
   P.tree = prog("tree", GS.TREE_VS, GS.TREE_FS); P.treeSh = prog("tree shadow", GS.TREE_VS, GS.TREE_SHADOW_FS);
   GS.IMP_FS.forEach((fs, i) => P["imp" + i] = prog("creatures " + i, GS.IMP_VS, fs));
+  P.prop = prog("props", GR.PROP_VS, GR.PROP_FS); P.propSh = prog("prop shadow", GR.PROP_VS, GR.PROP_SHADOW_FS);
   P.sky = prog("sky", GP.FS_VS, GP.SKYLUT_FS); P.cloud = prog("clouds", GP.FS_VS, GP.CLOUD_FS); P.comp = prog("composite", GP.FS_VS, GP.COMP_FS);
-  P.torn = prog("tornado", GP.TORN_VS, GP.TORN_FS); P.precip = prog("precipitation", GP.PRECIP_VS, GP.PRECIP_FS);
+  P.torn = prog("tornado", GP.FS_VS, GP.TORN_FS); P.precip = prog("precipitation", GP.PRECIP_VS, GP.PRECIP_FS);
   P.sprite = prog("sprites", GP.SPRITE_VS, GP.SPRITE_FS); P.ribbon = prog("ribbons", GP.RIBBON_VS, GP.RIBBON_FS);
   P.down = prog("bloom down", GP.FS_VS, GP.DOWN_FS); P.up = prog("bloom up", GP.FS_VS, GP.UP_FS); P.final = prog("final", GP.FS_VS, GP.FINAL_FS);
   if (Object.values(P).some(p => !p)) return false;
@@ -83,6 +88,7 @@ export function init(canvas) {
   leafTex = [0, 1, 2].map(k => { const t = tex(gl.TEXTURE_2D, gl.LINEAR_MIPMAP_LINEAR, gl.CLAMP_TO_EDGE); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, leafCanvas(k)); gl.generateMipmap(gl.TEXTURE_2D); return t });
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
   bindU(0, TX.height); bindU(1, TX.snow); bindU(2, TX.wx); bindU(3, TX.sh[0]); bindU(4, TX.sh[1]); bindU(5, TX.sky); bindU(6, TX.noise); bindU(7, TX.noise3, gl.TEXTURE_3D);
+  TX.road = tex(gl.TEXTURE_2D, gl.LINEAR_MIPMAP_LINEAR, gl.CLAMP_TO_EDGE); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, HN, HN, 0, gl.RGBA, gl.UNSIGNED_BYTE, null); gl.generateMipmap(gl.TEXTURE_2D); bindU(14, TX.road);
   // geometry
   const vb = (data, usage = gl.STATIC_DRAW) => { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, usage); return b };
   const at = (i, n, stride, off, div) => { gl.enableVertexAttribArray(i); gl.vertexAttribPointer(i, n, gl.FLOAT, false, stride, off); if (div) gl.vertexAttribDivisor(i, 1) };
@@ -99,6 +105,8 @@ export function init(canvas) {
   impVAO = gl.createVertexArray(); gl.bindVertexArray(impVAO); vb(quad); at(0, 2, 0, 0); impBuf = vb(new Float32Array(12), gl.DYNAMIC_DRAW); at(1, 4, 48, 0, 1); at(2, 4, 48, 16, 1); at(3, 4, 48, 32, 1);
   sprVAO = gl.createVertexArray(); gl.bindVertexArray(sprVAO); vb(quad); at(0, 2, 0, 0); sprBuf = vb(new Float32Array(9), gl.DYNAMIC_DRAW); at(1, 4, 36, 0, 1); at(2, 4, 36, 16, 1); at(3, 1, 36, 32, 1);
   ribVAO = gl.createVertexArray(); gl.bindVertexArray(ribVAO); ribBuf = vb(new Float32Array(13), gl.DYNAMIC_DRAW); at(0, 3, 52, 0); at(1, 3, 52, 12); at(2, 3, 52, 24); at(3, 4, 52, 36);
+  // building and vehicle meshes, each with its own instance buffer
+  { const M = MODELS(); for (const k in M) { const d = new Float32Array(M[k]), v = gl.createVertexArray(); gl.bindVertexArray(v); vb(d); at(0, 3, 40, 0); at(1, 3, 40, 12); at(2, 4, 40, 24); const ib = vb(new Float32Array(12), gl.DYNAMIC_DRAW); at(3, 4, 48, 0, 1); at(4, 4, 48, 16, 1); at(5, 4, 48, 32, 1); meshes[k] = { vao: v, ib, n: d.length / 10, count: 0 } } }
   gl.bindVertexArray(null);
   // palettes for the raymarched creatures
   const pal = [0, 1, 2].map(j => { const a = new Float32Array(96); a.set([[.8, .16, .14], [.92, .85, .25], [.3, .31, .36]][j], 90); a.set([[.86, .88, .91], [.08, .62, .7], [.1, .11, .13]][j], 93); AT.forEach((t, i) => a.set(t.pal[j], i * 3)); a.set(HUNTER_PAL[j], 24); CRAFT.forEach((t, i) => a.set(t.pal[j], (10 + i) * 3)); WPN.forEach((t, i) => a.set(t.pal[j], (20 + i) * 3)); return a });
@@ -153,7 +161,7 @@ function lightMat(L, C, R, D) {
 }
 const mix3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t], ss = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t) };
 const fsTri = () => { gl.bindVertexArray(emptyVAO); gl.drawArrays(gl.TRIANGLES, 0, 3) };
-export const stats = { blades: 0, trees: 0 };
+export const stats = { blades: 0, trees: 0, emis: 1, night: 0 };
 
 // V: { pos, r, u, f, tanHalf, near, far, focus, viewDist, orbit }
 export function render(V) {
@@ -163,7 +171,8 @@ export function render(V) {
   for (let i = 0; i < CG * CG; i++) snow8[i] = S.SNOW[i] * 255;
   bindU(1, TX.snow); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, CG, CG, gl.RED, gl.UNSIGNED_BYTE, snow8);
   bindU(2, TX.wx); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, CG, CG, gl.RGBA, gl.UNSIGNED_BYTE, S.WX);
-  const wl = weatherLook(), TM = S.TM, TW = S.TW, HU = S.HU, hunt = S.HUNT, land = !!S.LAND, flying = S.fly && !hunt && !land, rt = retro() ? 1 : 0, LI = land ? landerInstance() : null;
+  if (S.W && S.W.ver != roadVer) { roadVer = S.W.ver; bindU(14, TX.road); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, HN, HN, gl.RGBA, gl.UNSIGNED_BYTE, S.W.tex); gl.generateMipmap(gl.TEXTURE_2D) }
+  const wl = weatherLook(), TM = S.TM, TW = S.TW, HU = S.HU, hunt = S.HUNT, land = !!S.LAND, flying = S.fly && !hunt && !land && !S.GAME, rt = retro() ? 1 : 0, LI = land ? landerInstance() : null;
 
   // ---- light: sun or moon, ambient sky, exposure ----
   const hour = +$("tod").value, sd = sunDir(hour), haze = 1 + 2.5 * wl.over, key = hour.toFixed(3) + "|" + haze.toFixed(2);
@@ -191,7 +200,7 @@ export function render(V) {
     uSunDir: L, uSunCol: Lc, uAmbSky: ambSky, uAmbGnd: ambGnd, uSunTrue: sd, uMoonDir: md,
     uTer: [S.hs, S.sea, $("ring").checked ? 1 : 0, S.hex ? 1 : 0], uHz: $("hz").checked ? 1 : 0,
     uCloud: [wl.base, wl.thick, wl.thr, wl.cloudOn], uWind: [wl.wind[0], wl.wind[1], wl.wind[2], TM * .012], uWxG: [0, wl.over, wl.fog, fl],
-    uTorn: TW ? [TW[0], TW[1], TW[4], TW[3]] : [0, 0, 0, 0], uHu: hunt ? [HU.x, HU.z, HU.y, 1] : LI ? [LI[0], LI[2], gh(LI[0], LI[2]), 2.6] : [0, 0, 0, 0], uCl2: [wl.shadow, wl.dens, wl.veil, 38],
+    uTorn: TW ? [TW[0], TW[1], TW[4], TW[3]] : [0, 0, 0, 0], uHu: hunt ? [HU.x, HU.z, HU.y, 1] : LI ? [LI[0], LI[2], gh(LI[0], LI[2]), 2.6] : S.GAME && !S.GAME.hide ? [S.GAME.x, S.GAME.z, gh(S.GAME.x, S.GAME.z), S.GAME.mode == "foot" ? 1 : 2.2] : [0, 0, 0, 0], uCl2: [wl.shadow, wl.dens, wl.veil, 38],
     uShM0: LM[0], uShM1: LM[1], uShB: [t0 * 1.6, t0 * 1.2 / D0, t1 * 1.6, t1 * 1.2 / D1]
   });
 
@@ -211,13 +220,18 @@ export function render(V) {
   // ---- trees: sort instances into near (full) and far (light) meshes ----
   const treesOn = $("tr").checked;
   if (treesOn) {
-    if (!S.SK) protoGen(); if (treeVer != S.treeVer) buildTrees(); if (!S.TR) treeGen();
+    if (!S.SK) protoGen(); if (treeVer != S.treeVer) buildTrees(); if (!S.TR) { treeGen(); S.TR = S.TR.filter(t => !blocked(t[0], t[2])) }
     const lodD = Math.min(.22, Math.max(.06, vd * .25)); for (const m of trees) m.ins.length = 0;
     for (const t of S.TR) { const d = Math.hypot(t[0] - pos[0], t[1] - pos[1], t[2] - pos[2]), h = Math.sin(t[0] * 7919.3 + t[2] * 10472.7) * 43758.5; trees[t[4] * 2 + (d < lodD ? 0 : 1)].ins.push(t[0], t[1], t[2], t[3], (h - Math.floor(h)) * 6.2832, (h * 7.13) - Math.floor(h * 7.13), 0, 0) }
     for (const m of trees) { m.count = m.ins.length / 8; if (m.count) { gl.bindBuffer(gl.ARRAY_BUFFER, m.ib); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(m.ins), gl.DYNAMIC_DRAW) } }
     stats.trees = S.TR.length
   }
 
+  // ---- buildings, vehicles, people and game objects ----
+  stats.emis = 1 / exposure; stats.night = night;
+  const WD = worldDraw(V, night, stats.emis), G = S.GD || null;
+  for (const k in meshes) { const m = meshes[k], a = WD.props[k], b = G && G.props && G.props[k], all = a && b ? a.concat(b) : a || b; m.count = all ? all.length / 12 : 0; if (m.count) { gl.bindBuffer(gl.ARRAY_BUFFER, m.ib); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(all), gl.DYNAMIC_DRAW) } }
+  const drawProps = p => { for (const k in meshes) { const m = meshes[k]; if (m.count) { gl.bindVertexArray(m.vao); gl.drawArraysInstanced(gl.TRIANGLES, 0, m.n, m.count) } } };
   gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE); gl.depthMask(true); gl.colorMask(true, true, true, true);
   // ---- 1. sky lookup ----
   gl.disable(gl.DEPTH_TEST); gl.bindFramebuffer(gl.FRAMEBUFFER, FB.sky); gl.viewport(0, 0, 256, 128);
@@ -229,6 +243,7 @@ export function render(V) {
     gl.bindFramebuffer(gl.FRAMEBUFFER, FB.sh[c]); gl.viewport(0, 0, SH, SH); gl.clear(gl.DEPTH_BUFFER_BIT);
     let p = use(P.terrainSh); set(p, "uVP", LM[c]); drawTerrain(p);
     if (treesOn) { p = use(P.treeSh); set(p, "uVP", LM[c]); drawTrees(p) }
+    p = use(P.propSh); set(p, "uVP", LM[c]); drawProps(p);
   }
   gl.disable(gl.POLYGON_OFFSET_FILL);
 
@@ -244,6 +259,7 @@ export function render(V) {
   }
   let p = use(P.terrain); set(p, "uGFar", gFar); set(p, "uRetro", rt); drawTerrain(p);
   if (treesOn) { gl.enable(gl.SAMPLE_ALPHA_TO_COVERAGE); p = use(P.tree); drawTrees(p); gl.disable(gl.SAMPLE_ALPHA_TO_COVERAGE) }
+  p = use(P.prop); set(p, "uNite", [Math.max(night, wl.over * .5), stats.emis]); drawProps(p);
   if (grassOn) {
     p = use(P.grass);
     rings.forEach((g, k) => {
@@ -257,7 +273,7 @@ export function render(V) {
   if ($("ae").checked) for (const a of S.AN) {
     if (a.st == "dead" && TM > (a.dd || 0) + 4) continue; if (a.st == "dead" && !a.dd) continue;
     const T = AT[a.t], un = T.au * (hunt ? .45 : 1), air = a.st == "carried" || a.st == "thrown", hop = a.t == 0 && a.mv ? Math.abs(Math.sin(TM * 8 + a.id * 3)) * un * .7 : 0;
-    imp.push(a.x, a.y + hop, a.z, un, a.h + (air ? TM * 7 + a.id : 0), a.t, (a.mv || air) ? TM * (a.t == 0 ? 9 : a.t == 4 ? 8 : a.t == 5 ? 5 : a.t == 6 ? 26 : a.t == 7 ? 3.2 : 6) + a.id : 0, a.st == "dead" ? 2 : 0, 0, 0, 0, 0)
+    imp.push(a.x, a.y + hop, a.z, un, a.h + (air ? TM * 7 + a.id : 0), a.t, (a.mv || air) ? (a.t > 0 && a.t < 4 && a.ph != null && !air ? a.ph : TM * (a.t == 0 ? 9 : a.t == 4 ? 8 : a.t == 5 ? 5 : a.t == 6 ? 26 : a.t == 7 ? 3.2 : 6) + a.id) : 0, a.st == "dead" ? 2 : (a.t > 3 ? a.gl : a.gz) ? 1 : 0, a.t > 3 && !air ? a.bk || 0 : 0, a.t < 4 && !air ? a.pt || 0 : 0, 0, 0)
   }
   if (hunt && HU.view == 0) imp.push(HU.x, HU.y, HU.z, .0015, Math.PI / 2 - HU.yaw, 8, HU.ph, HU.sw ? 1 : 0, 0, 0, HU.chute || 0, 0);
   if (hunt && HU.view == 1 && !HU.walk) {
@@ -265,7 +281,8 @@ export function render(V) {
     imp.push(pos[0] + f[0] * o[0] + r[0] * o[1] + u[0] * o[2], pos[1] + f[1] * o[0] + r[1] * o[1] + u[1] * o[2], pos[2] + f[2] * o[0] + r[2] * o[1] + u[2] * o[2], .0005, Math.PI / 2 - S.cam.yaw, 20 + HU.wp, 0, 0, 0, -S.cam.pit + (HU.rec || 0) * .08, 0, 0)
   }
   if (LI) imp.push(...LI);
-  if (flying && $("pl").checked) { const c = S.cam, k = +$("cr").value; imp.push(c.x, c.y, c.z, CRAFT[k].cu, Math.PI / 2 - c.yaw, 10 + k, 0, 0, -(c.bank || 0), 0, 0, 0) }
+  for (const q of WD.imp) imp.push(q); if (G && G.imp) for (const q of G.imp) imp.push(q);
+  if (flying && $("pl").checked) { const c = S.cam, k = +$("cr").value; imp.push(c.x, c.y, c.z, CRAFT[k].cu, Math.PI / 2 - c.yaw, 10 + k, 0, 0, -(c.bank || 0), c.pitch || 0, 0, 0) }
   if (imp.length) {
     const fam = [[], [], [], [], [], []]; for (let i = 0; i < imp.length; i += 12) { const k = imp[i + 5]; fam[k < 3.5 ? 0 : k < 7.5 ? 1 : k < 9.5 ? 2 : k < 19.5 ? 3 : k < 29.5 ? 4 : 5].push(...imp.slice(i, i + 12)) }
     gl.bindVertexArray(impVAO); gl.bindBuffer(gl.ARRAY_BUFFER, impBuf);
@@ -281,12 +298,11 @@ export function render(V) {
   gl.bindFramebuffer(gl.FRAMEBUFFER, FB.cloud); gl.viewport(0, 0, Math.max(1, W >> 1), Math.max(1, H >> 1)); p = use(P.cloud); set(p, "uFlashP", flashP); fsTri();
   gl.bindFramebuffer(gl.FRAMEBUFFER, FB.comp); gl.viewport(0, 0, W, H); p = use(P.comp); set(p, "uNight", [night, 0, 0, 0]); set(p, "uSunDisc", atmoVal.sun.map(v => v * 420 * ss(-.03, .02, sd[1]))); fsTri();
 
+  if (TW) { const Hh = TW[3] - TW[2]; gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); p = use(P.torn); set(p, "uTB", [TW[0], TW[2], TW[1], TW[4]]); set(p, "uTS", [Hh, wl.base + wl.thick - TW[2], Hh * .36]); set(p, "uDust", [.4, .33, .25]); fsTri(); gl.disable(gl.BLEND) }
   // ---- 7. transparent effects, depth-tested against the scene ----
   gl.bindFramebuffer(gl.FRAMEBUFFER, FB.compD); gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(false); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
   const spr = [], rib = [], seg = (a, b, w, c) => { for (const q of [[-1, 0], [1, 0], [-1, 1], [1, 0], [1, 1], [-1, 1]]) rib.push(a[0], a[1], a[2], b[0], b[1], b[2], q[0], q[1], w, c[0], c[1], c[2], c[3]) };
   if (TW) {
-    const Hh = TW[3] - TW[2], hh2 = Hh / 2 + .03; p = use(P.torn); set(p, "uTB", [TW[0], TW[2], TW[1], TW[4]]); set(p, "uTS", [Hh, hh2, hh2 * .8]); set(p, "uDust", [.4, .33, .25]);
-    gl.bindVertexArray(tornVAO); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     for (let a = 0; a < 28; a++) { const h1 = Math.sin(a * 12.9898) * 43758.5, q1 = h1 - Math.floor(h1), q2 = (h1 * 3.7) - Math.floor(h1 * 3.7), an = TM * (3 + q1 * 3) + a * .9, rr = .012 + .03 * q2; spr.push(TW[0] + Math.cos(an) * rr, TW[2] + .004 + .05 * q1 * (1 + Math.sin(TM * 3 + a)), TW[1] + Math.sin(an) * rr, .0012 + .0022 * q2, .42, .36, .28, .85 * TW[4], 0) }
   }
   if (wl.wm != "off") {
@@ -303,6 +319,8 @@ export function render(V) {
   if (hunt && HU.flash > 0) { const k = Math.min(1, HU.flash * 10) * 40, o = HU.view == 1 ? [.0045, .00075, -.0009] : [.004, 0, -.0006], b = HU.view == 1 ? pos : [HU.x, HU.y + .0047, HU.z]; spr.push(b[0] + f[0] * o[0] + r[0] * o[1] + u[0] * o[2], b[1] + f[1] * o[0] + r[1] * o[1] + u[1] * o[2], b[2] + f[2] * o[0] + r[2] * o[1] + u[2] * o[2], .0009, k, k * .8, k * .4, 1, 3) }
   if ($("ae").checked) for (const a of S.AN) if (a.eat > TM && a.st == "alive") { const un = AT[a.t].au * (hunt ? .45 : 1); spr.push(a.x + Math.cos(a.h) * un, a.y + un * .9, a.z + Math.sin(a.h) * un, un * .14, .75, .08, .08, 1, 0) }
   if (S.FX) for (const q of S.FX) spr.push(q);
+  for (const q of WD.fx) spr.push(q); for (const q of WD.fxr) seg(q[0], q[1], q[2], q[3]);
+  if (G) { if (G.fx) for (const q of G.fx) spr.push(q); if (G.fxr) for (const q of G.fxr) seg(q[0], q[1], q[2], q[3]) }
   if (S.FXR) for (const q of S.FXR) seg(q[0], q[1], q[2], q[3]);
   for (const t of S.TRC) seg(t.a, t.b, 1.6, [6, 5.6, 4, Math.min(1, t.t * 8)]);
   if (bolt) { const k = 90 * (.5 + .5 * fl); for (let i = 1; i < bolt.length; i++) { seg(bolt[i - 1], bolt[i], 2.2, [k * .92, k * .94, k, 1]); seg(bolt[i - 1], bolt[i], 9, [k * .1, k * .12, k * .2, 1]) } }

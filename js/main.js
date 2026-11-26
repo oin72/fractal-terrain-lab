@@ -4,8 +4,11 @@ import { gen, shade, gh } from './terrain.js';
 import * as R from './renderer.js';
 import { animStep, flyTick, huntTick, bindLife, bindZoom, tryFire } from './life.js';
 import { weatherStep } from './weather.js';
+import { worldTick } from './world.js';
 import { audioBind, audioTick } from './audio.js';
 import { startLander, stopLander, landerTick, bindLander, retro, landerSize } from './lander.js';
+import { startSandbox, stopSandbox, gameTick, bindSandbox, setGame } from './sandbox.js';
+import { GAMES } from './games.js';
 
 const cv = $("c");
 function setZoom(z) { S.zoom = Math.max(.4, Math.min(40, z)); $("z").value = 100 * Math.log(S.zoom / .4) / Math.log(100); $("zv").textContent = S.zoom.toFixed(2) }
@@ -23,7 +26,8 @@ function view() {
   let b;
   if (S.fly) {
     const c = S.cam; yaw = c.yaw; pit = c.pit; tanHalf = .5 / (.95 * S.zoom); b = basis();
-    if (S.LAND) { const D = .05 / S.zoom, cy = c.y + landerSize; pos = [c.x - b.f[0] * D, cy - b.f[1] * D, c.z - b.f[2] * D]; focus = [c.x, gh(c.x, c.z), c.z]; vd = D; tanHalf = .42 }
+    if (S.GAME) { const G = S.GAME, D = G.fp ? 0 : G.cd / S.zoom; pos = [c.x - b.f[0] * D, c.y - b.f[1] * D, c.z - b.f[2] * D]; focus = [c.x, gh(c.x, c.z), c.z]; vd = Math.max(.02, D); fp = !!G.fp; tanHalf = .42 }
+    else if (S.LAND) { const D = .05 / S.zoom, cy = c.y + landerSize; pos = [c.x - b.f[0] * D, cy - b.f[1] * D, c.z - b.f[2] * D]; focus = [c.x, gh(c.x, c.z), c.z]; vd = D; tanHalf = .42 }
     else if (S.HUNT) { pos = [c.x, c.y, c.z]; focus = [S.HU.x, S.HU.y, S.HU.z]; fp = S.HU.view == 1; vd = fp ? .02 : .03 }
     else { const D = .16, k = D * .52 * tanHalf; pos = [c.x - b.f[0] * D + b.u[0] * k, c.y - b.f[1] * D + b.u[1] * k, c.z - b.f[2] * D + b.u[2] * k]; focus = [c.x, gh(c.x, c.z), c.z]; vd = .2 }
   } else {
@@ -48,11 +52,11 @@ function adapt(dt) {
 function fit() { const r = $("w").getBoundingClientRect(); let d = Math.min(devicePixelRatio || 1, 1.5) * rs; cv.style.imageRendering = retro() ? "pixelated" : ""; if (retro()) d = 240 / Math.max(1, r.height); const px = r.width * r.height * d * d, cap = 2560 * 1440; if (px > cap) d *= Math.sqrt(cap / px); cv.width = Math.max(2, Math.round(r.width * d)); cv.height = Math.max(2, Math.round(r.height * d)) }
 
 let last = 0, frames = 0;
-function frame(t) {
-  requestAnimationFrame(frame);
+function frame(t) { requestAnimationFrame(frame); step(t) }
+function step(t) {
   const raw = (t - last) / 1000 || .016, dt = Math.min(.05, raw); last = t; S.TM = t / 1000; adapt(Math.min(raw, .5));
-  weatherStep(dt);
-  if (S.fly) { if (S.LAND) landerTick(dt); else if (S.HUNT) huntTick(dt); else flyTick(dt, t) }
+  weatherStep(dt); worldTick(dt);
+  if (S.fly) { if (S.GAME) gameTick(dt); else if (S.LAND) landerTick(dt); else if (S.HUNT) huntTick(dt); else flyTick(dt, t) }
   animStep(dt); audioTick();
   R.render(view());
   if (!(frames++ % 30)) { const n = $("ge").checked ? R.stats.blades : 0; $("gqv").textContent = n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : (n / 1000 | 0) + "k" }
@@ -74,27 +78,32 @@ function bind() {
   cv.addEventListener("wheel", e => { e.preventDefault(); setZoom(S.zoom * Math.exp(-e.deltaY * .0015)) }, { passive: false });
   const typing = e => { const t = e.target; return t && (t.tagName == "INPUT" && (t.type == "text" || t.type == "number")) };
   addEventListener("keydown", e => {
-    if (typing(e)) return; keys[e.key] = 1; keys[e.key.toLowerCase()] = 1; if ((S.HUNT || S.LAND) && e.key == " ") e.preventDefault(); if (!S.fly) return; if (e.key.startsWith("Arrow")) e.preventDefault(); if (S.HUNT || S.LAND) return; const s = $("spd");
+    if (typing(e)) return; keys[e.key] = 1; keys[e.key.toLowerCase()] = 1; if ((S.HUNT || S.LAND || S.GAME) && (e.key == " " || e.key == "Enter")) e.preventDefault(); if (!S.fly) return; if (e.key.startsWith("Arrow")) e.preventDefault(); if (S.HUNT || S.LAND || S.GAME) return; const s = $("spd");
     if (e.key == "ArrowUp") s.value = +s.value + .02; if (e.key == "ArrowDown") s.value = +s.value - .02; s.oninput()
   });
   addEventListener("keyup", e => { keys[e.key] = 0; keys[e.key.toLowerCase()] = 0 });
   // pointer: drag to look / steer / aim, pinch to zoom, tap to fire
   let dr = null; const ptr = new Map();
-  cv.onpointerdown = e => { if (S.HUNT) S.HU.moved = 0; dr = [e.clientX, e.clientY]; ptr.set(e.pointerId, [e.clientX, e.clientY]); cv.setPointerCapture(e.pointerId) };
+  cv.onpointerdown = e => { if (S.HUNT) S.HU.moved = 0; if (S.GAME) S.GAME.moved = 0; dr = [e.clientX, e.clientY]; ptr.set(e.pointerId, [e.clientX, e.clientY]); cv.setPointerCapture(e.pointerId) };
   cv.onpointermove = e => {
     if (!dr) return;
     if (ptr.size == 2) { const [p, q] = [...ptr.values()], d0 = Math.hypot(p[0] - q[0], p[1] - q[1]); ptr.set(e.pointerId, [e.clientX, e.clientY]); const [p2, q2] = [...ptr.values()]; setZoom(S.zoom * Math.hypot(p2[0] - q2[0], p2[1] - q2[1]) / (d0 || 1)); return }
     const dx = e.clientX - dr[0], dy = e.clientY - dr[1]; dr = [e.clientX, e.clientY];
-    if (S.HUNT) { const HU = S.HU; HU.yaw += dx * .006; HU.pit = Math.max(-.6, Math.min(1.1, HU.pit + dy * .004)); if (Math.abs(dx) + Math.abs(dy) > 1) HU.moved = 1 }
+    if (S.GAME) { const G = S.GAME; if (G.mode == "foot" && !G.lock) G.yaw += dx * .006; else if (!G.lock) G.coff += dx * .006; G.pit = Math.max(-.5, Math.min(1.25, G.pit + dy * .004)); if (Math.abs(dx) + Math.abs(dy) > 1) G.moved = 1 }
+    else if (S.HUNT) { const HU = S.HU; HU.yaw += dx * .006; HU.pit = Math.max(-.6, Math.min(1.1, HU.pit + dy * .004)); if (Math.abs(dx) + Math.abs(dy) > 1) HU.moved = 1 }
     else if (S.fly) { S.cam.yaw += dx * .006; S.cam.pit = Math.max(-.3, Math.min(1.1, S.cam.pit + dy * .004)); S.manual = performance.now() }
     else { S.yaw += dx * .008; S.pit = Math.max(.02, Math.min(1.45, S.pit + dy * .006)) }
   };
-  cv.onpointerup = cv.onpointercancel = e => { if (S.HUNT && !S.HU.moved && e.type == "pointerup") tryFire(); ptr.delete(e.pointerId); dr = ptr.size ? [...ptr.values()][0] : null };
+  cv.onpointerup = cv.onpointercancel = e => { if (S.GAME && !S.GAME.moved && e.type == "pointerup") S.GAME.click = 1; if (S.HUNT && !S.HU.moved && e.type == "pointerup") tryFire(); ptr.delete(e.pointerId); dr = ptr.size ? [...ptr.values()][0] : null };
   // options panel: one section open at a time
   const gs = $("groups"); gs.querySelectorAll("details").forEach(d => d.addEventListener("toggle", () => { if (d.open) gs.querySelectorAll("details").forEach(o => { if (o !== d) o.open = false }) }));
   $("ptab").onclick = () => { gs.style.display = gs.style.display == "none" ? "" : "none" };
   $("spb").onclick = loadSpotify;
-  $("lb").onclick = () => { if (S.LAND) { stopLander(); return } if (S.HUNT || S.fly) $(S.HUNT ? (S.HU.walk ? "wb" : "hb") : "fb").click(); startLander() };
+  for (const g of GAMES) { const o = document.createElement("option"); o.value = g.id; o.textContent = g.n; $("gm").append(o) }
+  $("sb").onclick = () => { if (S.GAME) stopSandbox(); else startSandbox($("gm").value) };
+  $("gp").onclick = () => { if (S.GAME) setGame($("gm").value); else startSandbox($("gm").value); $("gp").blur() };
+  bindSandbox(setZoom);
+  $("lb").onclick = () => { if (S.LAND) { stopLander(); return } if (S.GAME) stopSandbox(); if (S.HUNT || S.fly) $(S.HUNT ? (S.HU.walk ? "wb" : "hb") : "fb").click(); startLander() };
   $("lm").addEventListener("input", fit); bindLander(setZoom, fit);
   new ResizeObserver(fit).observe($("w")); addEventListener("resize", fit)
 }
@@ -116,7 +125,7 @@ function loadSpotify() {
 bind(); bindLife(); audioBind(); fit();
 fetch("VERSION").then(r => r.ok ? r.text() : "").then(v => { if (v.trim()) $("ver").textContent = "v" + v.trim() }).catch(() => { });
 // Debug handle: FTL.fixedScale = 0.8 pins the render scale (turns the adaptive scaler off)
-window.FTL = { S, R };
+window.FTL = { S, R, tick: n => { for (let i = 0; i < (n || 1); i++) step(last + 33) } };
 // Shader compilation and noise generation take a few seconds, so let the page paint a message first
 $("hud").textContent = "Preparing landscape…";
 setTimeout(() => { if (R.init(cv)) { gen(); requestAnimationFrame(frame) } $("hud").textContent = "" }, 40);

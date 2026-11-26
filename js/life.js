@@ -78,18 +78,22 @@ export function animStep(dt) {
       if (tgt && bd < .0016) { a.h = Math.atan2(a.z - tgt.z, a.x - tgt.x); sp *= 2.1 } else tgt = null
     }
     if (!tgt) {
-      if (a.t == 1 || a.t == 3) { let cx = 0, cz = 0, n = 0; for (const b of al) if (b !== a && b.t == a.t && (b.x - a.x) ** 2 + (b.z - a.z) ** 2 < .02) { cx += b.x; cz += b.z; n++ } if (n) a.h += Math.sin(Math.atan2(cz / n - a.z, cx / n - a.x) - a.h) * dt * .8 }
-      a.h += (Math.random() - .5) * dt * 4; if (TM > a.pau && Math.random() < dt * .25) a.pau = TM + 1 + Math.random() * (a.t == 1 ? 7 : a.t == 2 ? 2 : 3); if (TM < a.pau) { a.mv = 0; a.y = gh(a.x, a.z); continue }
+      // herds and packs: steer towards the group, match its heading, keep a body length apart
+      if (a.t == 1 || a.t == 3) { let cx = 0, cz = 0, hx = 0, hz = 0, n = 0; for (const b of al) { if (b === a || b.t != a.t) continue; const d2 = (b.x - a.x) ** 2 + (b.z - a.z) ** 2; if (d2 < .02) { cx += b.x; cz += b.z; hx += Math.cos(b.h); hz += Math.sin(b.h); n++; if (d2 < .00012) a.h += Math.sin(Math.atan2(a.z - b.z, a.x - b.x) - a.h) * dt * 2 } } if (n) { a.h += Math.sin(Math.atan2(cz / n - a.z, cx / n - a.x) - a.h) * dt * .6; a.h += Math.sin(Math.atan2(hz, hx) - a.h) * dt * .7 } }
+      // wandering is a slowly drifting turn rate, not a jitter
+      a.wv = (a.wv || 0) * (1 - Math.min(1, dt * 1.2)) + (Math.random() - .5) * dt * 5; a.h += a.wv * dt * 1.4; if (TM > a.pau && Math.random() < dt * .25) a.pau = TM + 1 + Math.random() * (a.t == 1 ? 7 : a.t == 2 ? 2 : 3); if (TM < a.pau) { a.mv = 0; a.v = 0; a.gz = a.t < 2 && Math.sin(TM * .6 + a.id * 2.3) > -.4 ? 1 : 0; a.y = gh(a.x, a.z); continue }
     }
-    a.mv = 1; if (a.fear > TM && HU.on) { a.h = Math.atan2(a.z - HU.z, a.x - HU.x); sp *= 2 } if (a.t == 0) sp *= 2.2 * Math.max(0, Math.sin(TM * 8 + a.id * 3)); else if (a.t == 2 && tgt) sp *= bd > .0004 ? .55 : 1.5;
+    a.mv = 1; a.gz = 0; if (a.fear > TM && HU.on) { a.h = Math.atan2(a.z - HU.z, a.x - HU.x); sp *= 2 } else if (!tgt) sp *= .42;
+    a.v = (a.v || 0) + (sp - (a.v || 0)) * Math.min(1, dt * 2.5); sp = a.v; if (a.t) a.ph = (a.ph || 0) + dt * (2 + 170 * sp);
+    if (a.t == 0) sp *= 2.2 * Math.max(0, Math.sin(TM * 8 + a.id * 3)); else if (a.t == 2 && tgt) sp *= bd > .0004 ? .55 : 1.5;
     const nx = a.x + Math.cos(a.h) * sp * dt, nz = a.z + Math.sin(a.h) * sp * dt;
-    if (outside(nx, nz, .03) || gh(nx, nz) <= sy + .01) a.h += 1.6 + Math.random() * 1.5; else { a.x = nx; a.z = nz }
-    a.y = gh(a.x, a.z); if (a.y <= sy + .006) placeAn(a); animCall(a)
+    const W = S.W; if (outside(nx, nz, .03) || gh(nx, nz) <= sy + .01 || (W && W.on && W.bld.some(b => (b.x - nx) ** 2 + (b.z - nz) ** 2 < b.r * b.r))) { a.h += (a.wv > 0 ? 1 : -1) * (1.2 + Math.random()); a.v *= .5 } else { a.x = nx; a.z = nz }
+    a.y = gh(a.x, a.z); { const fy = gh(a.x + Math.cos(a.h) * .004, a.z + Math.sin(a.h) * .004); a.pt = (a.pt || 0) + (Math.max(-.55, Math.min(.55, Math.atan((fy - a.y) / .004) * .85)) - (a.pt || 0)) * Math.min(1, dt * 5) } if (a.y <= sy + .006) placeAn(a); animCall(a)
   }
 }
 // Birds (hawk, eagle, robin, dragon): flying animals with their own altitude bands; hawk/eagle/dragon stoop on prey
 function birdStep(a, T, dt, al, dm) {
-  const TM = S.TM; a.fh = a.fh || 0; let tg = null, bd = 1e9, sp = T.sp;
+  const TM = S.TM, h0 = a.h; a.fh = a.fh || 0; let tg = null, bd = 1e9, sp = T.sp;
   if (T.pred) for (const b of al) { if (b.st != "alive" || !T.pred.includes(b.t)) continue; const d = (b.x - a.x) ** 2 + (b.z - a.z) ** 2; if (d < bd) { bd = d; tg = b } }
   if (tg && bd < .01) {
     const w = Math.atan2(tg.z - a.z, tg.x - a.x); a.h += Math.atan2(Math.sin(w - a.h), Math.cos(w - a.h)) * Math.min(1, dt * 3); sp *= 1.8; a.fh = Math.max(.002, a.fh - (.04 + Math.sqrt(bd) * .5) * dt);
@@ -97,13 +101,16 @@ function birdStep(a, T, dt, al, dm) {
   } else { a.h += (Math.sin(TM * .3 + a.id) * .4 + (T.circ ? (a.id % 2 ? .5 : -.5) : (Math.random() - .5) * .8)) * dt; const alt = T.alt[0] + (T.alt[1] - T.alt[0]) * (.5 + .5 * Math.sin(TM * .15 + a.id * 2)); a.fh += (alt - a.fh) * Math.min(1, dt * .8) }
   const nx = a.x + Math.cos(a.h) * sp * dt, nz = a.z + Math.sin(a.h) * sp * dt;
   if (outside(nx, nz, .03)) a.h = Math.atan2(-a.z, -a.x) + (Math.random() - .5) * .8; else { a.x = nx; a.z = nz }
+  // raptors soar on fixed wings and only flap to chase; small birds flap in bursts; all bank into their turns
+  a.gl = tg && bd < .01 ? 0 : T.circ ? (Math.sin(TM * .5 + a.id * 1.7) > .75 ? 0 : 1) : a.t == 6 ? (Math.sin(TM * 3.1 + a.id) > .2 ? 0 : 1) : 0;
+  const dh = Math.atan2(Math.sin(a.h - h0), Math.cos(a.h - h0)) / Math.max(dt, .004); a.bk = (a.bk || 0) + (Math.max(-.8, Math.min(.8, dh * .9)) - (a.bk || 0)) * Math.min(1, dt * 3);
   a.mv = 1; a.y = gh(a.x, a.z) + a.fh; animCall(a)
 }
 
 // ---------- Fly-through ----------
 export function zoomCraft() { setZoom(.0084 / CRAFT[+$("cr").value].cu) }
 export function toggleFly() {
-  if (!S.Hn) return; if (S.LAND && S.stopLander) S.stopLander(); if (S.HUNT) { stopHunt(); return } S.fly = !S.fly; $("fb").textContent = S.fly ? "■ Stop flying" : "✈ Fly through";
+  if (!S.Hn) return; if (S.GAME && S.stopGame) S.stopGame(); if (S.LAND && S.stopLander) S.stopLander(); if (S.HUNT) { stopHunt(); return } S.fly = !S.fly; $("fb").textContent = S.fly ? "■ Stop flying" : "✈ Fly through";
   if (S.fly) { S.cam = { x: 0, z: -.3, yaw: 0, pit: .2, y: gh(0, -.3) + .09 }; zoomCraft() } else setZoom(1)
 }
 // Tornado vs craft: suction inside 0.25, capture inside 0.07, spiral up the funnel, then ejected in a random direction
@@ -129,7 +136,10 @@ export function flyTick(dt, t) {
   if (r > lm) { let d = Math.atan2(-c.x, -c.z) - c.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); const k = Math.min(1, (r - lm) * 12); turn = Math.max(-1, Math.min(1, d * 2)) * k + turn * (1 - k) }
   c.yaw += turn * dt * 1.1 * cr.tg; c.bank = (c.bank || 0) + (turn * cr.bk + cr.sw * Math.sin(t / 800) - (c.bank || 0)) * Math.min(1, dt * 4); moveCraft(c, dt, sp, t);
   const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw), top = Math.max(gh(c.x, c.z), gh(c.x + fx * .06, c.z + fz * .06), gh(c.x + fx * .14, c.z + fz * .14));
-  c.y += ((c.tw == 1 && TW ? TW[2] + (TW[3] - TW[2]) * (.15 + .7 * Math.min(1, (t - c.t0) / 3500)) : top + cr.cl + cr.aa * Math.sin(t / 1000 * 6.283 / cr.ap)) - c.y) * Math.min(1, dt * 3)
+  const y0 = c.y;
+  c.y += ((c.tw == 1 && TW ? TW[2] + (TW[3] - TW[2]) * (.15 + .7 * Math.min(1, (t - c.t0) / 3500)) : top + cr.cl + cr.aa * Math.sin(t / 1000 * 6.283 / cr.ap)) - c.y) * Math.min(1, dt * 3);
+  // nose follows the climb or descent (not for the balloon or the ship)
+  c.pitch = (c.pitch || 0) + ((cr.bk > .2 && !c.tw ? Math.max(-.5, Math.min(.5, Math.atan2((c.y - y0) / Math.max(dt, .004), sp + .03))) : 0) - (c.pitch || 0)) * Math.min(1, dt * 3)
 }
 
 // ---------- Hunter: walk/run on land, swim in water; hitscan weapons and a bow with arrows ----------
@@ -208,7 +218,7 @@ export function huntTick(dt) {
   $("cross").style.display = H.walk ? "none" : "block"; $("swim").style.display = H.sw && !H.walk && H.view == 1 ? "block" : "none"
 }
 export function startHunt(wk) {
-  if (!S.Hn) return; if (S.LAND && S.stopLander) S.stopLander(); const sy = seaY(), HU = S.HU; let x = 0, z = -.2;
+  if (!S.Hn) return; if (S.GAME && S.stopGame) S.stopGame(); if (S.LAND && S.stopLander) S.stopLander(); const sy = seaY(), HU = S.HU; let x = 0, z = -.2;
   for (let k = 0; k < 60; k++) { const a = (Math.random() - .5) * .7, b = (Math.random() - .5) * .7; if (!outside(a, b, .06) && gh(a, b) > sy + .012) { x = a; z = b; break } }
   S.HUNT = true; Object.assign(HU, { on: 1, walk: !!wk, x, z, y: gh(x, z), yaw: Math.random() * 6.28, pit: .15, cool: 0, flash: 0, rec: 0, ph: 0, mv: 0, sw: 0, kills: 0, moved: 0, btn: 0, tilt: 0, sf: 0, sa: 0, tw: 0, cd: 0, chute: 0 }); S.PTL = [];
   S.fly = true; S.cam = { x, z, y: HU.y + .02, yaw: HU.yaw, pit: .15 }; setZoom(+$("hv").value ? 1.5 : 1);

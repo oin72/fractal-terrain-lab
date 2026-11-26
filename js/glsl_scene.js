@@ -39,6 +39,18 @@ void main(){
  float snow=max(smoothstep(.8,.9,tn),snowAt(p)*1.3)*smoothstep(.45,.72,n.y+(n3.r-.5)*.2);snow=clamp(snow,0.,1.);
  float uw=smoothstep(seaY,seaY-.002,h0);
  alb=mix(alb,mix(sand*.75,vec3(.07,.09,.06),smoothstep(0.,.04,seaY-h0)),uw);snow*=1.-uw;
+ vec4 rq=roadAt(p);
+ if(rq.r>.004&&uw<.5){float g=rq.g,d=(1.-rq.r)*.016,aa=max(.0004,dist*.0015),pv=smoothstep(.12,.3,length(rq.ba-.5)),ph=atan(rq.a-.5,rq.b-.5)/6.2832+.5;
+  if(g<.5){float w=smoothstep(0.,.5,rq.r),row=.5+.5*cos(ph*37.7)*pv*smoothstep(.25,.02,dist);
+   vec3 cr=g<.25?vec3(.5,.4,.14):g<.37?vec3(.1,.22,.04):vec3(.13,.09,.06);alb=mix(alb,cr*(.6+.6*row)*(.85+.3*n3.r),w);}
+  else if(g<.66){float w=smoothstep(.0062+aa,.0062-aa,d);vec3 rcol=vec3(.035,.036,.04)*(.8+.5*n3.g+.3*n4.r);
+   float ln=smoothstep(aa*.6+.00018,.00018,abs(d-.0055))+smoothstep(aa*.6+.00016,.00016,d)*step(.5,fract(ph))*pv;
+   rcol=mix(rcol,vec3(.6),clamp(ln,0.,1.)*smoothstep(.6,.1,dist));
+   alb=mix(alb,mix(soil*1.4,vec3(.2,.19,.17),n3.b),smoothstep(.0085+aa,.0075,d)*.8);alb=mix(alb,rcol,w);}
+  else if(g<.82){float w=smoothstep(.0042+aa,.0026,d)*(.7+.3*n3.r);vec3 dc=vec3(.2,.15,.09)*(.7+.5*n3.g);dc*=1.-.3*smoothstep(.0007,.0002,abs(d-.0016));alb=mix(alb,dc,w);}
+  else{float w=smoothstep(.0056+aa,.0048,d);vec3 bl=vec3(.2,.19,.18)*(.6+.7*n4.g+.3*n3.b);
+   float sl=step(fract(ph*10.),.4)*pv*smoothstep(.0036+aa,.0032,d)*smoothstep(.2,.03,dist);bl=mix(bl,vec3(.07,.05,.035),sl);
+   float rl=smoothstep(.00035+aa*.5,.00015,abs(d-.0015));bl=mix(bl,vec3(.35,.33,.32),rl*smoothstep(.3,.05,dist));alb=mix(alb,bl,w);}}
  vec2 wx=wxAt(p);float wet=clamp(uWxG.x+wx.r*(1.-wx.g)*1.2,0.,1.)*(1.-snow);
  wet=max(wet,smoothstep(seaY+.0022,seaY+.0003,h0));
  alb*=mix(1.,.5,wet);
@@ -216,7 +228,7 @@ vec2 map(vec3 p){float k=fJ.y;vec4 A=pa(k);
  for(int i=0;i<4;i++){float f=float(i),fr=i<2?-1.:1.,sx=fr*bl*(fr<0.?.55:.5),z=(mod(f,2.)<.5?-1.:1.)*bh*.45,ar=ph+f*1.7+(mod(f,2.)<.5?0.:3.14),sw=sin(ar)*.3*ll,lf=max(0.,cos(ar))*.06;
   vec3 hip=vec3(sx,by-bh*.2,z),kn=vec3(sx+sw*.4-fr*.06*ll,ll*.5,z),ft=vec3(sx+sw,.02+lf,z);
   d=Sm(d,vec2(cap(p,hip,kn,.09+bh*.12),0.),.08);d=Um(d,vec2(cap(p,kn,ft,.045+bh*.07),2.));d=Um(d,vec2(ell(p,ft+vec3(.04,.02,0.),vec3(.09,.04,.06)),2.));}
- vec3 h0=vec3(bl*.8+B.w,by+bh*.45+B.w*.9,0.),hc=h0+vec3(hs*.45,hs*.15,0.);
+ float gz=fJ.w>.5&&fJ.w<1.5?1.:0.;vec3 h0=mix(vec3(bl*.8+B.w,by+bh*.45+B.w*.9,0.),vec3(bl*1.02+B.w*.8,ll*.3+hs*.2,0.),gz),hc=h0+mix(vec3(hs*.45,hs*.15,0.),vec3(hs*.3,-hs*.3,0.),gz);
  d=Sm(d,vec2(cap(p,vec3(bl*.7,by+bh*.4,0.),h0,hs*.62),0.),.12);
  d=Sm(d,vec2(ell(p,hc,vec3(hs*.95,hs*.8,hs*.72)),0.),.08);
  d=Sm(d,vec2(ell(p,hc+vec3(hs*.85+B.z*.5,-hs*.22,0.),vec3(hs*.55+B.z*.5,hs*.34,hs*.38)),1.),.06);
@@ -242,8 +254,9 @@ vec2 map(vec3 p){float ph=fJ.z,sw=fJ.w;vec3 p0=p;p.y-=.04*abs(sin(ph))*(1.-sw);
   d=Sm(d,vec2(cap(p,hip,kn,.17),0.),.1);d=Um(d,vec2(cap(p,kn,ft,.12),0.));d=Um(d,vec2(ell(p,ft+vec3(.14,.06,0.),vec3(.3,.12,.15)),2.));
   vec3 sh=vec3(0.,2.95,s*.5),el=vec3(.35,2.5,s*.55),hd=vec3(.95,2.55,s*.12);
   if(sw>.5){float st=sin(ar);hd=vec3(.5+st*.5,3.+max(0.,st)*.4,s*.6);el=vec3(.3+st*.2,2.9,s*.6);}
+  else if(fJ.y>8.5){hd=vec3(-a*.45,1.72,s*.6);el=vec3(-a*.2,2.32,s*.6);}
   d=Um(d,vec2(cap(p,sh,el,.13),0.));d=Um(d,vec2(cap(p,el,hd,.1),0.));d=Um(d,vec2(sph(p,hd,.09),5.));}
- if(sw<.5){d=Um(d,vec2(cap(p,vec3(.15,2.5,.1),vec3(2.1,2.68,.1),.065),2.));d=Um(d,vec2(bxx(p,vec3(.25,2.45,.1),vec3(.35,.14,.07)),6.));}
+ if(sw<.5&&fJ.y<8.5){d=Um(d,vec2(cap(p,vec3(.15,2.5,.1),vec3(2.1,2.68,.1),.065),2.));d=Um(d,vec2(bxx(p,vec3(.25,2.45,.1),vec3(.35,.14,.07)),6.));}
  if(sw>.5)d.x=max(d.x,1.55-p.y);
  d.x+=.008*(n3(p*10.)-.5);
  if(fK.z>0.){float c=fK.z,R=2.9*c;vec3 q=p0-vec3(0.,6.2,0.);
@@ -253,7 +266,7 @@ vec2 map(vec3 p){float ph=fJ.z,sw=fJ.w;vec3 p0=p;p.y-=.04*abs(sin(ph))*(1.-sw);
  return d;}
 `;
 const F_BRD = `
-vec2 map(vec3 p){float k=fJ.y-4.,fl=sin(fJ.z)*(fJ.w>1.5?0.:1.),az=abs(p.z),s=p.z<0.?-1.:1.;if(fJ.w>1.5)p.y=-p.y;vec2 d=vec2(1e3,0.);
+vec2 map(vec3 p){float k=fJ.y-4.,fl=fJ.w>1.5?0.:fJ.w>.5?.2+.03*sin(fJ.z*.15):sin(fJ.z),az=abs(p.z),s=p.z<0.?-1.:1.;if(fJ.w>1.5)p.y=-p.y;vec2 d=vec2(1e3,0.);
  if(k<1.5){float sc=k<.5?1.:1.3;p/=sc;az=abs(p.z);
   d=vec2(ell(p,vec3(0.),vec3(.75,.28,.26)),0.);d=Sm(d,vec2(sph(p,vec3(.85,.1,0.),.2),k<.5?0.:1.),.08);
   d=Um(d,vec2(ell(p,vec3(1.12,.03,0.),vec3(.17,.07,.06)),4.));d=Um(d,vec2(sph(p,vec3(.95,.18,.1),.035),7.));d=Um(d,vec2(sph(p,vec3(.95,.18,-.1),.035),7.));
@@ -279,10 +292,15 @@ vec2 map(vec3 p){float k=fJ.y-4.,fl=sin(fJ.z)*(fJ.w>1.5?0.:1.),az=abs(p.z),s=p.z
 // craft space: x across, y up, z forward
 const F_CR = `
 vec2 map(vec3 q){vec3 p=vec3(q.z,q.y,q.x);float K=fJ.y-10.,uT=uTime;vec2 d;float s=p.x<0.?-1.:1.;
- if(K<.5){d=vec2(cap(p,vec3(0.,0.,-1.6),vec3(0.,0.,1.4),.38),0.);d=Sm(d,vec2(bxx(p,vec3(0.,.05,.1),vec3(2.5,.07,.55)),0.),.1);
-  d=Um(d,vec2(bxx(p,vec3(0.,.12,-1.4),vec3(1.,.05,.3)),0.));d=Um(d,vec2(bxx(p,vec3(0.,.65,-1.4),vec3(.05,.65,.35)),1.));
-  d=Um(d,vec2(bxx(p,vec3(s*2.4,.05,.1),vec3(.13,.08,.55)),1.));d=Um(d,vec2(sph(p,vec3(0.,0.,1.45),.3),2.));
-  d=Um(d,vec2(ell(p,vec3(0.,.28,.7),vec3(.26,.2,.5)),3.));}
+ if(K<.5){vec3 a=vec3(abs(p.x),p.y,p.z);float dih=a.x*.09;
+  d=vec2(cap(p,vec3(0.,0.,-.4),vec3(0.,0.,1.15),.36),0.);d=Sm(d,vec2(cap(p,vec3(0.,.02,-.4),vec3(0.,.12,-2.2),.14),0.),.35);
+  d=Sm(d,vec2(bxx(vec3(a.x,p.y-dih,p.z+a.x*.05),vec3(0.,.32,.3),vec3(2.75,.04,.52-.09*a.x)),0.),.05);
+  d=Um(d,vec2(bxx(vec3(a.x,p.y-dih,p.z+a.x*.05),vec3(2.66,.32,.3),vec3(.1,.05,.3)),1.));
+  d=Um(d,vec2(bxx(p,vec3(0.,.14,-2.05),vec3(.95,.03,.24)),0.));d=Um(d,vec2(bxx(vec3(p.x,p.y,p.z+p.y*.35),vec3(0.,.6,-1.9),vec3(.03,.5,.26)),1.));
+  d=Um(d,vec2(ell(p,vec3(0.,.2,.45),vec3(.3,.26,.55)),3.));d=Um(d,vec2(sph(p,vec3(0.,0.,1.5),.16),2.));
+  float pr=length(p.xy),pa=atan(p.y,p.x)+uT*31.;d=Um(d,vec2(max(abs(p.z-1.55)-.02,max(pr-.82,abs(sin(pa))*pr-.065)),7.));
+  d=Um(d,vec2(cap(a,vec3(.2,-.25,.5),vec3(.6,-.72,.55),.035),2.));d=Um(d,vec2(ell(a,vec3(.6,-.78,.55),vec3(.06,.15,.15)),7.));
+  d=Um(d,vec2(cap(a,vec3(.3,-.2,.35),vec3(1.25,.36,.3),.025),2.));d=Um(d,vec2(sph(p,vec3(0.,-.1,-2.15),.06),7.));}
  else if(K<1.5){d=vec2(ell(p,vec3(0.),vec3(2.3,.5,2.3)),0.);d=Um(d,vec2(ell(p,vec3(0.,.35,0.),vec3(1.,.8,1.)),3.));d=Sm(d,vec2(ell(p,vec3(0.,-.3,0.),vec3(1.2,.35,1.2)),2.),.15);
   d=Um(d,vec2(sph(p,vec3(s*1.4,0.,-2.1),.28+.06*sin(uT*25.)),4.));d=Um(d,vec2(bxx(p,vec3(0.,.5,-2.),vec3(.08,.5,.3)),1.));}
  else if(K<2.5){float sz=p.z<0.?-1.:1.;d=vec2(ell(p,vec3(0.,3.,0.),vec3(1.8,2.1,1.8)),mod(floor((atan(p.x,p.z)+3.14159)/.5236),2.)<.5?0.:1.);
@@ -349,6 +367,7 @@ vec2 map(vec3 p){vec2 d;
 `;
 const IMP_B = `
 vec3 mc(float m,vec3 p){int k=int(fJ.y+.5);vec3 a=uA[k],b=uB[k],c=uC[k];
+ if(k==9){float s=fK.w;a=.28+.26*cos(6.2832*(s*5.+vec3(0.,.33,.67)));b=.3+.25*cos(6.2832*(s*11.+vec3(.1,.4,.7)));c=vec3(.12,.1,.09);}
  if(m<.5)return fJ.y<7.5?a*(.82+.36*n3(p*vec3(5.,13.,13.))):a;
  return m<1.5?b:m<2.5?c:m<3.5?vec3(.45,.85,.95):m<4.5?vec3(1.,.8,.4):m<5.5?vec3(.9,.7,.56):m<6.5?vec3(.2,.13,.08):m<7.5?vec3(.025):m<8.5?vec3(.95,.94,.9):vec3(.7,.5,1.);}
 void main(){float u=fI.w,k=fJ.y;

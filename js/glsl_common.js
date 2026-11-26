@@ -7,7 +7,7 @@ export const COMMON = `
 uniform mat4 uVP;uniform vec3 uCam,uCamR,uCamU,uCamF;uniform vec4 uProj;uniform float uTime;uniform vec2 uRes;
 uniform vec3 uSunDir,uSunCol,uAmbSky,uAmbGnd,uSunTrue,uMoonDir;
 uniform vec4 uTer;uniform float uHz;
-uniform sampler2D uHeight,uSnow,uWx,uNoise,uSkyLUT;uniform sampler3D uNoise3;
+uniform sampler2D uHeight,uSnow,uWx,uNoise,uSkyLUT,uRoad;uniform sampler3D uNoise3;
 uniform vec4 uCloud,uWind,uWxG,uTorn,uHu,uCl2;
 const float PI=3.14159265;
 uint pcg(uint v){uint s=v*747796405u+2891336453u;uint w=((s>>((s>>28u)+4u))^s)*277803737u;return(w>>22u)^w;}
@@ -40,6 +40,8 @@ float terrainY(vec2 p){float hs=uTer.x,seaY=uTer.y*hs,sd=footSdf(p),yo=seaY-.012
  // outside the tile the (mirrored) land slopes away to the sea bed; higher edges get a longer run so there is no wall
  float w=clamp(.07+1.4*max(y-seaY,0.)+.06*(vnoise(p*9.)-.5),.06,.5);
  return mix(y,yo,smoothstep(0.,w,sd));}
+// Ground paint from world.js: r = closeness to a road centre line (or field interior), g = kind, b/a = phase along it
+vec4 roadAt(vec2 p){if(footSdf(p)>0.)return vec4(0.);vec2 u=((foldP(p)+.5)*1023.+.5)/1024.;vec4 r=texture(uRoad,u);r.g=texelFetch(uRoad,ivec2(u*1024.),0).g;return r;}
 float snowAt(vec2 p){vec2 u=(p+1.3)/2.6;return(u.x>0.&&u.x<1.&&u.y>0.&&u.y<1.)?texture(uSnow,u).r:0.;}
 vec2 wxAt(vec2 p){vec2 u=(p+1.3)/2.6;return(u.x>0.&&u.x<1.&&u.y>0.&&u.y<1.)?texture(uWx,u).rg:vec2(0.);}
 // Shared material logic so the ground under the grass and the grass itself always agree
@@ -49,7 +51,8 @@ vec3 grassTipCol(vec3 pt,float r){vec3 lush=vec3(.085,.17,.03)*(.75+.5*pt.z),dry
 // x: jittered relative height, y: rock weight, z: sand weight, w: grass weight
 vec4 matW(vec2 p,float t,float ny){float a=texture(uNoise,p*19.).r,b=texture(uNoise,p*2.3).g,c=texture(uNoise,p*19.).g;
  float tn=t+(a-.5)*.04+(b-.5)*.08;float rock=smoothstep(.8,.62,ny+(c-.5)*.15),sand=1.-smoothstep(.02,.06,tn);
- return vec4(tn,rock,sand,grassMask(tn,ny)*(1.-rock)*(1.-sand));}
+ vec4 rq=roadAt(p);float cut=rq.g>.82?.62:rq.g>.66?.72:rq.g>.5?.5:.3;
+ return vec4(tn,rock,sand,grassMask(tn,ny)*(1.-rock)*(1.-sand)*(1.-smoothstep(cut-.08,cut+.04,rq.r)));}
 `;
 export const LIGHT = `
 uniform sampler2DShadow uSh0,uSh1;uniform mat4 uShM0,uShM1;uniform vec4 uShB;

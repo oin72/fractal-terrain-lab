@@ -145,7 +145,7 @@ export function gen() {
   else { const g = m == "ds" ? ds(L, H) : m == "fault" ? fault(L, H) : noise(L, H, m == "ridged"); norm(i => g.h[i], (i, v) => g.h[i] = v, g.h.length); Hn = upsample(g.h, g.N) }
   addDetail(Hn, L, H);
   S.hex = m == "tri"; S.edges = S.hex ? HX : SQ;
-  S.Hn = Hn; S.AO = aoMap(Hn); S.heightVer++; S.SK = null; S.TR = null;
+  S.Hraw = Hn; S.rawVer = (S.rawVer || 0) + 1; Hn = Hn.slice(); S.Hn = Hn; S.AO = aoMap(Hn); S.heightVer++; S.SK = null; S.TR = null;
   $("info").textContent = INFO[m]; $("seedIn").value = S.seed; shade()
 }
 export function shade() {

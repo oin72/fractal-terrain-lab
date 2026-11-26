@@ -126,41 +126,48 @@ void main(){` + RAY + `
  col=col*cl.a+cl.rgb;
  o=vec4(col,1.);}`;
 
-// ---------- Tornado: bent cone density carved by rising noise, raymarched with Beer-Lambert light ----------
-export const TORN_VS = HEAD + COMMON + `
-layout(location=0) in vec2 aQ;uniform vec4 uTB;uniform vec3 uTS;out vec3 vW;
-void main(){vec3 c=vec3(uTB.x,uTB.y+uTS.x*.5,uTB.z);vW=c+uCamR*aQ.x*uTS.z+vec3(0.,1.,0.)*aQ.y*uTS.y;gl_Position=uVP*vec4(vW,1.);}`;
-export const TORN_FS = HEAD + COMMON + `
-in vec3 vW;uniform vec4 uTB;uniform vec3 uTS,uDust;out vec4 o;
-float hs3(vec3 p){p=fract(p*.3183099+.1);p*=17.;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}
-float n3(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);
- return mix(mix(mix(hs3(i),hs3(i+vec3(1,0,0)),f.x),mix(hs3(i+vec3(0,1,0)),hs3(i+vec3(1,1,0)),f.x),f.y),mix(mix(hs3(i+vec3(0,0,1)),hs3(i+vec3(1,0,1)),f.x),mix(hs3(i+vec3(0,1,1)),hs3(i+vec3(1,1,1)),f.x),f.y),f.z);}
-float fbm(vec3 p){float a=.5,s=0.;for(int i=0;i<3;i++){s+=a*n3(p);p=p*2.03+vec3(1.7,9.2,3.1);a*=.5;}return s;}
-float dens(vec3 p){float uH=uTS.x,uT=uTime;
- float t=clamp(p.y/uH,0.,1.);
- vec2 sp=vec2(sin(uT*.5+t*3.)+.35*sin(t*7.+uT*.9),cos(uT*.4+t*2.4))*t*uH*.1;
- vec3 q=vec3(p.x-sp.x,p.y,p.z-sp.y);
- float r=length(q.xz),R1=uH*.1+.02,rad=mix(.006,R1,pow(t,1.6)),d=r-rad;
- float b=smoothstep(.35*rad,-.6*rad,d);
- float w=7./(1.+r/(R1*.35)),a=uT*w+t*3.,c=cos(a),s=sin(a);
- vec2 xz=vec2(c*q.x-s*q.z,s*q.x+c*q.z);
- float nz=fbm(vec3(xz.x/R1*2.2,q.y/uH*5.-uT*.7,xz.y/R1*2.2));
- float dn=clamp(b*1.35-nz*.9,0.,1.)*smoothstep(-.004,.012,p.y)*smoothstep(uH+.04,uH-.03,p.y);
- float sd=exp(-max(p.y,0.)*38.)*smoothstep(.085,.012,length(p.xz))*smoothstep(-.004,.003,p.y);
- sd*=.35+1.2*n3(vec3(xz.x*40.,p.y*60.-uT*.4,xz.y*40.));
- return dn+sd*1.3;}
-void main(){vec3 base=uTB.xyz,rd=normalize(vW-uCam),ro=uCam-base;float uH=uTS.x,Rb=length(uTS.yz);
- float tm=length(vW-uCam),t0=max(tm-Rb,0.),dt=2.*Rb/40.,T=1.;vec3 col=vec3(0.);
+// ---------- Tornado: a true volume marched inside a bounding cylinder, so it holds up from any angle including above.
+// Parts: a hollow rotating condensation funnel that leans and writhes, a spiral wall cloud and overshooting dome
+// at the cloud base, and a ground-hugging debris cloud. uTB = base xyz + strength, uTS = funnel height, dome top, radius.
+export const TORN_FS = HEAD + COMMON + SKYFOG + `
+in vec2 vUV;uniform sampler2D uDepth,uClouds;uniform vec4 uTB;uniform vec3 uTS,uDust;out vec4 o;
+float n3(vec3 x){return textureLod(uNoise3,x*.125,0.).r;}
+float fbm(vec3 p){return n3(p)*.6+n3(p*2.07+vec3(1.7,9.2,3.1))*.3+n3(p*4.3+vec3(5.1,2.2,7.7))*.15;}
+vec2 dens(vec3 p){float H=uTS.x,T=uTime,t=clamp(p.y/H,0.,1.);
+ vec2 ctr=vec2(sin(T*.45+t*3.4)+.4*sin(t*8.-T*.8),cos(T*.37+t*2.7))*H*.04*sin(t*3.1416)+uWind.xy*H*.2*t*(1.-t);
+ vec2 q=p.xz-ctr;float r=length(q);
+ float rad=H*(.018+.14*pow(t,2.3)+.006*sin(t*11.+T*1.3));
+ float w=2.+.2*H/(r+H*.012),a=T*w+t*5.,c=cos(a),s=sin(a);vec2 xz=vec2(c*q.x-s*q.y,s*q.x+c*q.y);
+ float nz=fbm(vec3(xz/(H*.07),p.y/H*4.-T*.9));
+ float shell=smoothstep(rad,rad*.7,r)*(1.-.6*smoothstep(rad*.55,0.,r));
+ float fun=clamp(shell*1.7-nz*1.15,0.,1.)*smoothstep(-.002,.008,p.y)*smoothstep(H*1.03,H*.9,p.y);
+ float Rw=uTS.z*.94,top=H*.93+(uTS.y-H*.93+H*.03)*(1.-min(1.,r*r/(Rw*Rw)));
+ float sl=smoothstep(H*.84,H*.95,p.y)*smoothstep(top,top-H*.06,p.y)*smoothstep(Rw,Rw*.5,r);
+ float sp=.5+.5*sin(atan(q.y,q.x)*4.+log(r/H+.02)*9.-T*1.1);
+ float a2=T*.35,c2=cos(a2),s2=sin(a2);vec2 x2=vec2(c2*q.x-s2*q.y,s2*q.x+c2*q.y);
+ float col=sl*clamp(1.5*sp-.2-fbm(vec3(x2/(H*.06),p.y/H*5.))*1.3,0.,1.)*(1.-.8*smoothstep(H*.1,0.,r));
+ float Rd=H*.2,dust=exp(-max(p.y,0.)/(H*.055))*smoothstep(Rd,Rd*.12,length(p.xz))*smoothstep(-.003,.002,p.y);
+ dust*=.2+1.5*n3(vec3(xz*(9./H),p.y*(14./H)-T*.6));
+ return vec2(fun+col*.75,dust*1.2)*uTB.w;}
+void main(){` + RAY + `
+ float dz=texture(uDepth,vUV).r,tS=dz>=1.?1e4:linDepth(dz)*rl,seaY=uTer.x*uTer.y;
+ if(rd.y<-1e-4&&uCam.y>seaY)tS=min(tS,(uCam.y-seaY)/-rd.y);
+ vec3 ro=uCam-uTB.xyz;float RB=uTS.z,H=uTS.x,yt=uTS.y+H*.08;
+ float a=dot(rd.xz,rd.xz),b=dot(ro.xz,rd.xz),c=dot(ro.xz,ro.xz)-RB*RB,t0=0.,t1=1e4;
+ if(a>1e-6){float h=b*b-a*c;if(h<0.)discard;h=sqrt(h);t0=(-b-h)/a;t1=(-b+h)/a;}else if(c>0.)discard;
+ if(abs(rd.y)>1e-5){float ya=(-.004-ro.y)/rd.y,yb=(yt-ro.y)/rd.y;t0=max(t0,min(ya,yb));t1=min(t1,max(ya,yb));}else if(ro.y<-.004||ro.y>yt)discard;
+ t0=max(t0,0.);t1=min(t1,tS);if(t1<=t0)discard;
+ float dt=(t1-t0)/44.,jit=fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453),T=1.;vec3 col=vec3(0.);
  float cs=dot(rd,uSunDir),g=.45,ph=(1.-g*g)/pow(1.+g*g-2.*g*cs,1.5)*.1;
- for(int i=0;i<40;i++){vec3 p=ro+rd*(t0+(float(i)+.5)*dt);
-  if(p.y<-.01||p.y>uH+.05||length(p.xz)>.14)continue;
-  float d=dens(p)*uTB.w;
-  if(d>.01){float dl=dens(p+uSunDir*.03)*uTB.w,lit=exp(-dl*3.);
-   vec3 lc=mix(vec3(.035),vec3(.62,.64,.7),lit*(1.-.65*clamp(d,0.,1.)));
-   lc=mix(lc,uDust*(.3+.7*lit),smoothstep(.34*uH,0.,p.y)*.85);
+ float above=step(uCloud.x+uCloud.y,uCam.y),clA=texture(uClouds,vUV).a;
+ for(int i=0;i<44;i++){vec3 p=ro+rd*(t0+(float(i)+jit)*dt);vec2 d=dens(p);float dd=d.x+d.y;
+  if(dd>.01){vec2 dl=dens(p+uSunDir*H*.07);float lit=exp(-(dl.x+dl.y)*3.);
+   vec3 lc=mix(vec3(.03),vec3(.42,.44,.5),lit*(1.-.6*clamp(d.x,0.,1.)));lc=mix(lc,uDust*(.3+.7*lit),d.y/dd);
    vec3 L=lc*(uSunCol*(.3+ph*2.)*lit+uAmbSky*.9);
-   float a=1.-exp(-d*dt*170.);col+=T*a*L;T*=1.-a;if(T<.03)break;}}
- o=vec4(col,1.-T);}`;
+   float al=1.-exp(-dd*dt*150.);if(above>.5&&p.y+uTB.y<uCloud.x+uCloud.y*.9)al*=clA;
+   col+=T*al*L;T*=1.-al;if(T<.03)break;}}
+ vec3 T3;vec3 fg=fogRay(uCam,rd,t0,T3);float A=1.-T;
+ o=vec4(col*T3+fg*A,A);}`;
 
 // ---------- Rain, sleet and snow: instanced streaks and flakes placed by hashing, inside the active weather cells ----------
 export const PRECIP_VS = HEAD + COMMON + TERR + `

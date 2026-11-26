@@ -16,6 +16,12 @@
 - Not verified: playing a full flight by hand between pads (the difficulty balance of thrust, fuel and landing limits is
   untested by a person), engine sound, the on-screen touch buttons.
 
+## Added in 0.3.0
+- Sandbox, 20 games, buildings and people, roads/railway/transport, volumetric tornado, more natural animals and craft. See `CHANGELOG.md`.
+- Checked in the browser (frames stepped by hand, Intel UHD): no shader or script errors; villages, roads, railway, train, cars, people, boats render; sandbox starts; all 20 games start and run 60 to 70 frames with scripted key presses without errors; flight, racing, platformer, golf looked right in screenshots; tornado funnel and collar seen from the ground.
+- Not verified: every game played through to a win or loss by a person (balance and difficulty are untuned); driving, sailing, flying and the train by hand; talking, building and removing by hand; the tornado seen from above (the test camera was inside the storm cloud); the new animal poses and bird banking close up; night window lights and headlights; hex (triangle) terrain with the new world; frame rate with everything on.
+- Known rough edges: villagers can walk through house corners; platforms, golf holes and courses can be placed across a village; the railway can cross roads without a level crossing; buildings and vehicles are not drawn on the mirrored surrounding tiles.
+
 ## Decided
 - Hand-written WebGL2, several files, no build step (owner's choice).
 - Tuned for a dedicated GPU. An adaptive scaler lowers render scale and grass density on slower GPUs.

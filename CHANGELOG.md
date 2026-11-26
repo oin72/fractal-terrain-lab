@@ -2,6 +2,20 @@
 
 All notable changes to Fractal Terrain Lab. Format follows Keep a Changelog; versions follow Semantic Versioning 2.0.0.
 
+## [0.3.0] - 2026-11-26
+
+### Added
+- Open-world sandbox (Sandbox button): walk, drive any car or bus, sail the boats, fly a plane and drive the train. Talk to people, startle animals, build and remove buildings and trees, change the weather and the time of day from the keyboard.
+- Twenty compact games played in the sandbox (Options, Sandbox & games): racing, flight simulator, first-person shooter, battle royale, platformer, survival, tower defence, turn-based artillery, city builder, treasure hunt, role-playing quest, stealth, horror, golf, endless runner, fishing, roguelike horde survival, lights-out puzzle, light-trail arcade and taxi driving.
+- Buildings and people option: villages with a church, farms with barns, silos and crop fields, windmills with turning sails, and fishing towns with a jetty and lighthouse. Villagers walk the streets. Windows light up at night.
+- Roads, tracks and transport option: roads, farm tracks and a railway routed over the terrain, with the land graded along them. Cars and buses (driving on the left), a train that stops at stations, fishing and sailing boats, cargo ships offshore, airliners with contrails and a light aircraft. Each kind has its own on/off control.
+
+### Changed
+- The tornado is now a true volume with a hollow rotating funnel, a spiral wall cloud and a debris cloud, so it holds its shape from any angle, including from above.
+- Animals move more naturally: steady wandering instead of jitter, walking and running speeds with acceleration, deer and rabbits lower their heads to graze, deer herd and wolves pack together, bodies tilt with the slope, and they walk round buildings.
+- Birds of prey soar on fixed wings and flap only to chase; small birds flap in bursts; all birds bank into turns.
+- The plane has a new model (tapered wings, spinning propeller, undercarriage) and craft pitch up and down as they climb and descend.
+
 ## [0.2.0] - 2026-11-26
 
 ### Added
