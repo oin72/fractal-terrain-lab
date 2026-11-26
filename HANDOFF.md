@@ -22,11 +22,17 @@
 - Not verified: every game played through to a win or loss by a person (balance and difficulty are untuned); driving, sailing, flying and the train by hand; talking, building and removing by hand; the tornado seen from above (the test camera was inside the storm cloud); the new animal poses and bird banking close up; night window lights and headlights; hex (triangle) terrain with the new world; frame rate with everything on.
 - Known rough edges: villagers can walk through house corners; platforms, golf holes and courses can be placed across a village; the railway can cross roads without a level crossing; buildings and vehicles are not drawn on the mirrored surrounding tiles.
 
+## Added in 0.4.0
+- Keyboard icon (controls on hover or tap) and Requests button. Checked locally and on the GitHub site: icon and tooltip show, Requests falls back to Copy/GitHub outside the artifact, sandbox starts on the live site.
+- Not verified: the artifact copy opened in claude.ai (page load there, and a real Send from a second account).
+
 ## Decided
 - Hand-written WebGL2, several files, no build step (owner's choice).
 - Tuned for a dedicated GPU. An adaptive scaler lowers render scale and grass density on slower GPUs.
 - The "GPU scene" checkbox was removed because the 2D painter it switched to no longer exists.
-- Pushed to a private GitHub repository, `oin72/fractal-terrain-lab` (branch `main`, tags `v0.1.0` and `v0.2.0`). Nothing deployed.
+- GitHub repository `oin72/fractal-terrain-lab` is now PUBLIC (owner's decision, 2026-11-26) and served by GitHub Pages from `main` at https://oin72.github.io/fractal-terrain-lab/ . Pushing to `main` updates the site.
+- Claude artifact copy: https://claude.ai/artifact/RVtHD7ZD6JBDAb8YHyr7aV (private until the owner shares it). Rebuild with `python tools/build_artifact.py` and republish with `js/*` and `VERSION`; capabilities `db` (rules: `requests` read admin / write owner, `requests/{self}` read and write interact) and `user`.
+- Requests from players: read the artifact's `requests` collection, and the repository's GitHub issues. Signed-in visitors from outside the owner's organisation can only view, so their Send falls back to Copy or GitHub.
 
 ## Not verified
 - Frame rate on a dedicated GPU. The test machine's browser pane used Intel UHD graphics (about 8 to 10 frames per second
